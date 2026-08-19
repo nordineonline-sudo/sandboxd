@@ -157,7 +157,7 @@ export function AppView({
             {sb ? `sb:${sb.id}` : app.id} <span style={{ fontSize: 10, color: c.faint }}>⧉</span>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', position: 'relative', flexWrap: 'wrap' }}>
           {!sb && <Btn variant="primary" disabled={busy} onClick={() => act(() => api.createAppSandbox(appId))} sm>Create sandbox</Btn>}
           {sb && status === 'stopped' && <Btn disabled={busy} onClick={() => act(() => api.startSandbox(sb.id))}>Start</Btn>}
           {sb && status === 'running' && <Btn disabled={busy} onClick={() => act(() => api.stopSandbox(sb.id))}>Stop</Btn>}
@@ -179,7 +179,7 @@ export function AppView({
       </div>
 
       {applied && (
-        <div data-testid="runtime-applied-banner" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 18, borderRadius: 9, border: `1px solid ${c.border}`, background: c.panel2, fontSize: 12.5 }}>
+        <div data-testid="runtime-applied-banner" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', marginBottom: 18, borderRadius: 9, border: `1px solid ${c.border}`, background: c.panel2, fontSize: 12.5, flexWrap: 'wrap' }}>
           <Pill tone="good" dot>runtime applied</Pill>
           <span style={{ color: c.fg2 }}>Detected <b style={{ color: c.fg }}>{applied.preset}</b> and wrote a <span style={{ ...mono, fontSize: 11.5 }}>sandbox.yaml</span> so the preview boots — your source was not modified.</span>
           <a onClick={undoRuntime} className="dc-hoverink" style={{ marginLeft: 'auto', color: c.link, cursor: 'pointer' }}>Undo</a>
@@ -188,9 +188,9 @@ export function AppView({
       )}
 
       {/* tabs */}
-      <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${c.border}`, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${c.border}`, marginBottom: 24, overflowX: 'auto' }}>
         {TABS.map((t) => (
-          <div key={t} data-testid={`tab-${t}`} className="dc-hoverink" onClick={() => setTabName(t)} style={{ ...tab(tabName === t), textTransform: 'capitalize' }}>
+          <div key={t} data-testid={`tab-${t}`} className="dc-hoverink" onClick={() => setTabName(t)} style={{ ...tab(tabName === t), textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
             {t}{tabBadge[t] && <span style={{ ...mono, marginLeft: 6, fontSize: 10, color: c.muted2 }}>{tabBadge[t]}</span>}
           </div>
         ))}
@@ -253,8 +253,8 @@ function Overview({ app, sb, previewURL, onError, toast, refresh, onApplyRuntime
   }, [ready, previewURL, nonce])
   const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 400px', gap: 16, alignItems: 'start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'minmax(0,1fr) 400px', gap: 16, alignItems: 'start' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
         {/* preview */}
         <Card style={{ overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel2 }}>
@@ -528,14 +528,15 @@ function ProcessesCard({ sb, running, procs, onError }: { sb: Sandbox | null; ru
 
   return (
     <Card style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
         <H>Processes</H>
         <span style={{ marginLeft: 'auto', ...mono, fontSize: 10.5, color: c.muted2 }}>supervised · auto-restart</span>
       </div>
       {procs.length === 0 ? (
         <div style={{ color: c.muted2, fontSize: 12.5 }} data-testid="processes-empty">No processes {running ? 'reported' : '— sandbox not running'}.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .9fr .6fr .7fr auto', gap: '0 12px', fontSize: 12.5, alignItems: 'center' }} data-testid="processes-list">
+        <div style={{ overflowX: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .9fr .9fr .6fr .7fr auto', gap: '0 12px', fontSize: 12.5, alignItems: 'center', minWidth: 420 }} data-testid="processes-list">
           {['Name', 'Kind', 'Status', 'PID', 'Restarts', ''].map((h, i) => (
             <div key={i} style={{ color: c.muted2, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.7px', padding: '6px 0', borderBottom: `1px solid ${c.border}` }}>{h}</div>
           ))}
@@ -551,6 +552,7 @@ function ProcessesCard({ sb, running, procs, onError }: { sb: Sandbox | null; ru
               </div>
             </Fragment>
           ))}
+        </div>
         </div>
       )}
       {logsFor && (
@@ -589,7 +591,7 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
   const showApply = !present && !!detected // no manifest yet + something detected
   return (
     <Card style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
         <H>Runtime</H>
         {valid !== null && <Pill tone={valid ? 'good' : 'bad'}>{valid ? 'sandbox.yaml valid' : 'sandbox.yaml invalid'}</Pill>}
         {showApply && <Pill tone="warn">detected: {detected!.preset}</Pill>}
@@ -599,7 +601,7 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
 {eff ? `command: ${eff.command || '(default)'}\nport: ${eff.port ?? 3000}\nhealth: ${eff.health || '/'}` : 'no sandbox.yaml — using defaults'}
       </pre>
       {showApply && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: c.muted }}>Detected <b style={{ color: c.fg }}>{detected!.preset}</b> ({detected!.confidence}). Apply the recommended <span style={{ ...mono, fontSize: 11.5 }}>sandbox.yaml</span> so the preview boots.</span>
           <Btn sm variant="primary" disabled={!canApply} title={canApply ? '' : 'Start the sandbox first'} onClick={onApplyRuntime} data-testid="apply-runtime" style={{ marginLeft: 'auto' }}>Apply detected runtime</Btn>
         </div>
@@ -879,7 +881,7 @@ function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | 
     ))
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '270px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : '270px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
       <Card style={{ padding: 10, maxHeight: isMobile ? 260 : 660, overflow: 'auto' }} data-testid="files-tree">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 6px 8px' }}>
           <H size={13}>Files</H>
@@ -986,7 +988,7 @@ function GitTab({ appId, onError, toast, goSettings }: { appId: string; onError:
   )
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : '360px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
       <Card style={{ padding: 14 }} data-testid="git-panel">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <H size={14}>Changes</H>
