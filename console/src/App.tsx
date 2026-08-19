@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, setOnUnauthorized, App as TApp, Preset, GitCredential, Agent } from './api'
-import { c, font, mono, Card, Btn, StatusPill, Input, navItem } from './design/kit'
+import { c, font, mono, Card, Btn, StatusPill, Input, navItem, useIsMobile } from './design/kit'
 import { PRESET_ICONS } from './design/presetIcons'
 import { STARTERS, STARTER_ICONS } from './design/starters'
 import { AppView } from './AppView'
@@ -13,6 +13,7 @@ import { Login, CreatePassword } from './AuthGate'
 type Route = { name: 'apps' } | { name: 'brain' } | { name: 'store' } | { name: 'settings' } | { name: 'app'; id: string; tab?: string; task?: string }
 
 export default function App() {
+  const isMobile = useIsMobile()
   const [route, setRoute] = useState<Route>({ name: 'apps' })
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([])
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -108,12 +109,12 @@ export default function App() {
         </div>
       )}
       {/* TOP BAR */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18, height: 52, flexShrink: 0, padding: '0 20px', borderBottom: `1px solid ${c.border}`, background: c.panel }}>
-        <div onClick={() => setRoute({ name: 'apps' })} style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 18, height: 52, flexShrink: 0, padding: isMobile ? '0 12px' : '0 20px', borderBottom: `1px solid ${c.border}`, background: c.panel, overflowX: 'auto' }}>
+        <div onClick={() => setRoute({ name: 'apps' })} style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flexShrink: 0 }}>
           <div style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg,#3f3f46,#18181b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font.mono, fontSize: 11, color: c.bg }}>&gt;_</div>
-          <span style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, letterSpacing: '.2px' }}>sandboxd <span style={{ fontWeight: 500, color: c.muted }}>console</span></span>
+          {!isMobile && <span style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, letterSpacing: '.2px' }}>sandboxd <span style={{ fontWeight: 500, color: c.muted }}>console</span></span>}
         </div>
-        <div style={{ display: 'flex', gap: 2 }}>
+        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
           {nav.map((n) => (
             <div key={n.key} data-testid={`nav-${n.key}`} className="dc-hoverink" onClick={() => setRoute({ name: n.key } as Route)} style={navItem(route.name === n.key)}>
               {n.label}
@@ -122,23 +123,35 @@ export default function App() {
         </div>
         <div style={{ flex: 1 }} />
         {running && (
-          <div onClick={() => goApp(running.id)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 7, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '4px 10px', cursor: 'pointer' }}>
+          <div onClick={() => goApp(running.id)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 7, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.good }} />
-            <span style={{ ...mono, fontSize: 11.5 }}>{running.name}</span>
+            {!isMobile && <span style={{ ...mono, fontSize: 11.5 }}>{running.name}</span>}
           </div>
         )}
-        <div onClick={() => setPaletteOpen(true)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '5px 10px', cursor: 'pointer', width: 180 }}>
-          <span style={{ color: c.muted2, fontSize: 12, flex: 1 }}>Search…</span>
-          <span style={{ ...mono, fontSize: 10, color: c.muted2, background: c.panel2, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
-        </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <a href="https://sandboxd.io" target="_blank" rel="noreferrer" className="dc-hoverink" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>Docs</a>
-          <a href="https://github.com/tastyeffectco/sandboxd" target="_blank" rel="noreferrer" className="dc-hoverink" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>GitHub</a>
-          <a href="https://github.com/tastyeffectco/sandboxd/discussions" target="_blank" rel="noreferrer" className="dc-hoverink" data-testid="nav-feedback" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>Feedback</a>
-          {auth?.enabled && (
-            <span data-testid="nav-logout" className="dc-hoverink" onClick={logout} style={{ color: c.muted, fontSize: 12, cursor: 'pointer' }}>Log out</span>
-          )}
-        </div>
+        {!isMobile && (
+          <div onClick={() => setPaletteOpen(true)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '5px 10px', cursor: 'pointer', width: 180, flexShrink: 0 }}>
+            <span style={{ color: c.muted2, fontSize: 12, flex: 1 }}>Search…</span>
+            <span style={{ ...mono, fontSize: 10, color: c.muted2, background: c.panel2, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
+          </div>
+        )}
+        {isMobile && (
+          <button onClick={() => setPaletteOpen(true)} aria-label="Search" className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, cursor: 'pointer', flexShrink: 0, color: c.muted2, fontSize: 14 }}>
+            🔍
+          </button>
+        )}
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+            <a href="https://sandboxd.io" target="_blank" rel="noreferrer" className="dc-hoverink" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>Docs</a>
+            <a href="https://github.com/tastyeffectco/sandboxd" target="_blank" rel="noreferrer" className="dc-hoverink" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>GitHub</a>
+            <a href="https://github.com/tastyeffectco/sandboxd/discussions" target="_blank" rel="noreferrer" className="dc-hoverink" data-testid="nav-feedback" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>Feedback</a>
+            {auth?.enabled && (
+              <span data-testid="nav-logout" className="dc-hoverink" onClick={logout} style={{ color: c.muted, fontSize: 12, cursor: 'pointer' }}>Log out</span>
+            )}
+          </div>
+        )}
+        {isMobile && auth?.enabled && (
+          <span data-testid="nav-logout" className="dc-hoverink" onClick={logout} style={{ color: c.muted, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Log out</span>
+        )}
       </div>
 
       {/* MAIN */}
@@ -262,7 +275,7 @@ function AppsScreen({ apps, reload, onOpen, onError, goStore }: { apps: TApp[]; 
   const showForm = creating || apps.length === 0
 
   return (
-    <div style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
+    <div className="dc-page" style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
       <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 700, margin: '0 0 6px' }}>Apps</h1>
       <p style={{ color: c.muted, margin: '0 0 18px', maxWidth: 580 }}>Each app runs isolated in its own sandbox with a live preview URL — an AI agent builds it, you own it. Idle apps sleep and wake on request.</p>
 
@@ -449,7 +462,7 @@ function BrainOverview({ apps, onOpen }: { apps: TApp[]; onOpen: (id: string) =>
   const without = apps.filter((a) => brains[a.id] !== undefined && !hasBrain(a.id))
 
   return (
-    <div style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
+    <div className="dc-page" style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
       <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 700, margin: '0 0 6px' }}>Brain</h1>
       <p style={{ color: c.muted, margin: '0 0 24px', maxWidth: 600 }}>
         Every project's memory in one place — state, decisions, gotchas. Each app's <span style={{ ...mono, fontSize: 12 }}>BRAIN.md</span> is read by the agent before every task and updated as it learns.

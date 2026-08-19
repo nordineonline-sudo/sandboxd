@@ -30,3 +30,10 @@ a{color:inherit}
 .dc-hoverink:hover{color:var(--fg)!important}
 .prov-ico{display:flex;align-items:center;justify-content:center}
 .prov-ico svg{width:100%;height:100%;display:block}
+
+/* Mobile: the page containers use generous fixed padding (36-40px) designed
+   for desktop; shrink it so content isn't squeezed on phone-width screens.
+   Keep in sync with design/kit.tsx's MOBILE_BREAKPOINT. */
+@media (max-width: 780px) {
+  .dc-page{padding-left:14px!important;padding-right:14px!important}
+}

@@ -82,7 +82,7 @@ export function SettingsView({ onError, toast }: { onError: (m: string) => void;
   )
 
   return (
-    <div style={{ maxWidth: 780, margin: '0 auto', padding: '36px 40px 90px' }}>
+    <div className="dc-page" style={{ maxWidth: 780, margin: '0 auto', padding: '36px 40px 90px' }}>
       <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 700, margin: '0 0 4px' }}>Settings</h1>
       <p style={{ color: c.muted, margin: '0 0 16px' }}>Connect agents and tune the sandbox lifecycle here. Everything else is fixed at deploy time — each value below shows where to change it.</p>
 

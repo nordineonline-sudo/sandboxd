@@ -46,7 +46,7 @@ export function StoreView({ onError, toast, onOpen, reloadApps }: { onError: (m:
   }
 
   return (
-    <div style={{ maxWidth: 1080, margin: '0 auto', padding: '36px 40px 80px' }}>
+    <div className="dc-page" style={{ maxWidth: 1080, margin: '0 auto', padding: '36px 40px 80px' }}>
       <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 700, margin: '0 0 4px' }}>App Store</h1>
       <p style={{ color: c.muted, margin: '0 0 20px', maxWidth: 720 }}>One-click open-source apps, installed as ordinary sandboxd apps — each runs isolated in its own sandbox with a live preview URL. Recipes are data on top of the public API; the core engine is untouched.</p>
       <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>

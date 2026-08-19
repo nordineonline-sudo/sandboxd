@@ -1,4 +1,25 @@
-import { CSSProperties, ReactNode } from 'react'
+import { CSSProperties, ReactNode, useEffect, useState } from 'react'
+
+// Shared breakpoint: below this width, multi-column layouts (file tree +
+// editor, diff list + viewer, preview + agent chat) stack into a single
+// column instead of squeezing fixed-width side panels. Kept as one constant
+// so every view agrees on where "mobile" starts.
+export const MOBILE_BREAKPOINT = 780
+
+// Tracks the viewport against MOBILE_BREAKPOINT via matchMedia (updates live
+// on resize/orientation change, e.g. rotating a phone or docking a tablet).
+export function useIsMobile(breakpoint: number = MOBILE_BREAKPOINT): boolean {
+  const query = `(max-width: ${breakpoint}px)`
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.matchMedia(query).matches : false))
+  useEffect(() => {
+    const mql = window.matchMedia(query)
+    const onChange = () => setIsMobile(mql.matches)
+    onChange()
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }, [query])
+  return isMobile
+}
 
 // Exact palette from the design.
 export const c = {

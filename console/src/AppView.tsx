@@ -1,6 +1,6 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, TaskSummary, RuntimeSuggestion } from './api'
-import { c, font, mono, Card, H, Btn, Pill, StatusPill, statusTone, Input, tab } from './design/kit'
+import { c, font, mono, Card, H, Btn, Pill, StatusPill, statusTone, Input, tab, useIsMobile } from './design/kit'
 import { DeployModal } from './DeployModal'
 import { IS_DEMO } from './demo'
 import { slugKey, splitInline } from './brain'
@@ -139,7 +139,7 @@ export function AppView({
   const tabBadge: Record<Tab, string> = { overview: '', brain: '', files: '', git: '', config: '', terminal: '', snapshots: '', activity: '' }
 
   return (
-    <div style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 40px 80px' }}>
+    <div className="dc-page" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 40px 80px' }}>
       <div style={{ fontSize: 12, color: c.muted2, marginBottom: 10 }}>
         <a onClick={goApps} className="dc-hoverink" style={{ color: c.muted, cursor: 'pointer', textDecoration: 'none' }}>Apps</a>
         <span style={{ margin: '0 4px' }}>/</span><span style={{ color: c.fg }}>{app.name}</span>
@@ -251,8 +251,9 @@ function Overview({ app, sb, previewURL, onError, toast, refresh, onApplyRuntime
       .finally(() => clearTimeout(timer))
     return () => { cancelled = true; clearTimeout(timer); ctrl.abort() }
   }, [ready, previewURL, nonce])
+  const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 400px', gap: 16, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 400px', gap: 16, alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* preview */}
         <Card style={{ overflow: 'hidden' }}>
@@ -608,6 +609,7 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
 }
 
 function AgentChat({ sb, onError, toast, refresh }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void }) {
+  const isMobile = useIsMobile()
   const [agent, setAgent] = useState('opencode')
   const [model, setModel] = useState('')
   const [cont, setCont] = useState(true) // continue the last agent session by default
@@ -711,10 +713,10 @@ function AgentChat({ sb, onError, toast, refresh }: { sb: Sandbox | null; onErro
   )
 
   return (
-    <Card style={{ display: 'flex', flexDirection: 'column', height: 640, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel3 }}>
+    <Card style={{ display: 'flex', flexDirection: 'column', height: isMobile ? '70vh' : 640, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel3, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
         <H size={14}>Agent</H>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+        <div style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : undefined }}>
           <label title="Continue the sandbox's most recent agent session instead of starting fresh" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: cont ? c.fg : c.muted2, cursor: 'pointer' }} data-testid="task-continue">
             <input type="checkbox" checked={cont} onChange={(e) => setCont(e.target.checked)} style={{ accentColor: c.ink, width: 13, height: 13 }} />
             Continue
@@ -803,6 +805,7 @@ function buildFileTree(entries: FileEntry[]): TreeNode[] {
 function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void }) {
   const sandboxId = sb?.id
   const running = sb?.status === 'running'
+  const isMobile = useIsMobile()
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [path, setPath] = useState<string | null>(null)
@@ -876,8 +879,8 @@ function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | 
     ))
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '270px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
-      <Card style={{ padding: 10, maxHeight: 660, overflow: 'auto' }} data-testid="files-tree">
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '270px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
+      <Card style={{ padding: 10, maxHeight: isMobile ? 260 : 660, overflow: 'auto' }} data-testid="files-tree">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 6px 8px' }}>
           <H size={13}>Files</H>
           <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
@@ -933,6 +936,7 @@ function DiffView({ text }: { text: string }) {
 }
 
 function GitTab({ appId, onError, toast, goSettings }: { appId: string; onError: (m: string) => void; toast: (m: string) => void; goSettings: () => void }) {
+  const isMobile = useIsMobile()
   const [st, setSt] = useState<GitStatus | null>(null)
   const [sel, setSel] = useState<Record<string, boolean>>({})
   const [msg, setMsg] = useState('')
@@ -982,7 +986,7 @@ function GitTab({ appId, onError, toast, goSettings }: { appId: string; onError:
   )
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '360px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '360px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
       <Card style={{ padding: 14 }} data-testid="git-panel">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <H size={14}>Changes</H>
