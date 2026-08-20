@@ -661,10 +661,12 @@ function AgentChat({ sb, onError, toast, refresh }: { sb: Sandbox | null; onErro
     loadHistory()
   }
 
+  const promptRef = useRef<HTMLTextAreaElement>(null)
   const send = async () => {
     if (!sb || !sandboxRunning || !text.trim() || running) return
     const prompt = text.trim()
     setText(''); setLive({ prompt, text: '' }); setResolved(''); setRunning(true)
+    if (promptRef.current) promptRef.current.style.height = 'auto'
     try {
       const t = await api.submitTask(sb.id, prompt, agent, model || undefined, cont)
       let agentText = ''
@@ -773,8 +775,22 @@ function AgentChat({ sb, onError, toast, refresh }: { sb: Sandbox | null; onErro
           Using the <b>OpenCode free tier</b> — no setup needed. Connect an API key in <b>Settings → AI Agents</b> for the full model catalog.
         </div>
       )}
-      <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${c.border}`, background: c.panel3 }}>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }} placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? 'Message the agent…' : 'Start the sandbox to run tasks'} data-testid="task-prompt" rows={1} style={{ flex: 1, background: '#fff', border: `1px solid ${c.border2}`, borderRadius: 7, padding: '8px 11px', color: c.fg, fontSize: 12.5, fontFamily: font.sans, resize: 'none' }} />
+      <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${c.border}`, background: c.panel3, alignItems: 'flex-end' }}>
+        <textarea
+          ref={promptRef}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value)
+            const el = e.target
+            el.style.height = 'auto'
+            el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? 'Message the agent… (Shift+Enter for a new line)' : 'Start the sandbox to run tasks'}
+          data-testid="task-prompt"
+          rows={2}
+          style={{ flex: 1, background: '#fff', border: `1px solid ${c.border2}`, borderRadius: 7, padding: '8px 11px', color: c.fg, fontSize: 12.5, fontFamily: font.sans, resize: 'vertical', minHeight: 46, maxHeight: 160, lineHeight: 1.4 }}
+        />
         <Btn variant="primary" onClick={send} disabled={!sb || !sandboxRunning || running || inputBlocked} data-testid="run-task">Send</Btn>
       </div>
     </Card>
