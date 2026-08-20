@@ -785,8 +785,8 @@ function AgentChat({ sb, onError, toast, refresh }: { sb: Sandbox | null; onErro
             el.style.height = 'auto'
             el.style.height = `${Math.min(el.scrollHeight, 160)}px`
           }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
-          placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? 'Message the agent… (Shift+Enter for a new line)' : 'Start the sandbox to run tasks'}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); send() } }}
+          placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? (isMobile ? 'Message the agent…' : 'Message the agent… (Shift+Enter for a new line)') : 'Start the sandbox to run tasks'}
           data-testid="task-prompt"
           rows={2}
           style={{ flex: 1, background: '#fff', border: `1px solid ${c.border2}`, borderRadius: 7, padding: '8px 11px', color: c.fg, fontSize: 12.5, fontFamily: font.sans, resize: 'vertical', minHeight: 46, maxHeight: 160, lineHeight: 1.4 }}
