@@ -18,6 +18,12 @@ patch** — each lands the meaningful changes merged since the last one — and 
   sandbox's internal `opencode web` — validates the per-sandbox password
   (auth_token query or Basic), passes static assets through, and streams SSE/pty
   — plus `GET /v1/sandboxes/{id}/opencode-url`, by @nordineonline-sudo (fork)
+* feat(control-plane): seed the sandbox's app workspace into the OpenCode web
+  client's per-browser project store (localStorage) on first load, so
+  conversations created on one device are visible from any other — the project
+  registry is otherwise browser-local and a fresh device shows "Nothing here
+  yet"; injects the seed script into the SPA shell and allow-lists it in the
+  page's Content-Security-Policy by sha256 hash, by @nordineonline-sudo (fork)
 
 ## [0.3.6] — 2026-08-01
 

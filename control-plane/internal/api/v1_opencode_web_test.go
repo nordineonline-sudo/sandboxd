@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -211,5 +213,95 @@ func TestOpencodeWebStaticPath(t *testing.T) {
 		if opencodeWebStaticPath(p) {
 			t.Errorf("opencodeWebStaticPath(%q) = true, want false", p)
 		}
+	}
+}
+
+func TestOpencodeWebSeedScript(t *testing.T) {
+	if got := opencodeWebSeedScript(""); got != "" {
+		t.Fatalf("empty dir should yield empty script, got %q", got)
+	}
+
+	script := opencodeWebSeedScript(sandboxAppDir)
+	for _, want := range []string{
+		sandboxAppDir,
+		"opencode.global.dat:server",
+		"opencode.global.dat:layout",
+		"projects",
+		"local:",
+		"home.selection",
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("seed script missing %q", want)
+		}
+	}
+}
+
+func TestInjectOpencodeWebSeed(t *testing.T) {
+	html := `<!doctype html><html><head><meta charset="utf-8" /><title>OpenCode</title>
+<script type="module" crossorigin src="/assets/index-CQtwhDOb.js"></script>
+</head><body><div id="root"></div></body></html>`
+
+	seeded := injectOpencodeWebSeed([]byte(html), sandboxAppDir)
+	got := string(seeded)
+	if !strings.Contains(got, "<script>"+opencodeWebSeedScript(sandboxAppDir)+"</script>") {
+		t.Fatal("seed script not injected verbatim")
+	}
+	if strings.Count(got, "</head>") != 1 {
+		t.Fatalf("</head> should appear exactly once, got %d", strings.Count(got, "</head>"))
+	}
+	if !strings.HasPrefix(got, html[:strings.Index(html, "<script")]) {
+		t.Fatal("injection disturbed the markup before the seed script")
+	}
+
+	// Injection must be idempotent-safe in shape: the bundle tag still loads.
+	if !strings.Contains(got, `type="module" crossorigin src="/assets/index-CQtwhDOb.js"`) {
+		t.Fatal("module bundle tag was disturbed")
+	}
+
+	// No </head> → unchanged.
+	noHead := `<!doctype html><html><body>x</body></html>`
+	if got := injectOpencodeWebSeed([]byte(noHead), sandboxAppDir); string(got) != noHead {
+		t.Fatal("markup without </head> must be returned unchanged")
+	}
+}
+
+func TestOpencodeWebCSPAllowScript(t *testing.T) {
+	script := []byte(opencodeWebSeedScript(sandboxAppDir))
+	sum := sha256.Sum256(script)
+	hash := "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+
+	// Cross-check against the hash Chrome actually demanded when it refused the
+	// injected script during E2E testing — if the seed script content drifts,
+	// this pin catches it and the browser would block the seed again.
+	if hash != "'sha256-L7yfMiQcNy42CjvFy2y/M8F6JUfjRTaQ+OnyMwo4o2o='" {
+		t.Fatalf("seed script hash drifted: %s", hash)
+	}
+
+	csp := "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'"
+	got := opencodeWebCSPAllowScript(csp, script)
+	if !strings.Contains(got, "script-src 'self' 'wasm-unsafe-eval' "+hash) {
+		t.Fatalf("hash not appended to script-src: %q", got)
+	}
+	if strings.Count(got, "script-src") != 1 {
+		t.Fatalf("script-src should appear once, got %d", strings.Count(got, "script-src"))
+	}
+
+	// Idempotent.
+	if again := opencodeWebCSPAllowScript(got, script); again != got {
+		t.Fatalf("not idempotent: %q != %q", again, got)
+	}
+
+	// Policy with no script-src directive gets one appended.
+	noSrc := "default-src 'self'"
+	if got := opencodeWebCSPAllowScript(noSrc, script); got != "default-src 'self'; script-src "+hash {
+		t.Fatalf("script-src not appended to policy without one: %q", got)
+	}
+
+	// Empty inputs are returned unchanged.
+	if got := opencodeWebCSPAllowScript("", script); got != "" {
+		t.Fatal("empty csp should be returned unchanged")
+	}
+	if got := opencodeWebCSPAllowScript(csp, nil); got != csp {
+		t.Fatal("empty script should be returned unchanged")
 	}
 }

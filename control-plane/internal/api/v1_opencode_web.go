@@ -25,9 +25,13 @@
 package api
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"html"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -108,17 +112,164 @@ func (s *Server) ServeOpencodeWebHost(w http.ResponseWriter, r *http.Request) {
 			// is equivalent, but stamping ours keeps it correct even after a
 			// master-key rotation mid-session.
 			req.Header.Set("Authorization", auth)
+			// Ask the upstream for identity encoding so ModifyResponse below can
+			// read (and seed) the SPA HTML as plain text. Without this the client
+			// advertises gzip/br and Bun serves the index compressed; the proxy
+			// re-adds "gzip" itself whenever the header is absent, so an explicit
+			// "identity" is the only reliable way to keep the response readable.
+			// Cost is no compression for API JSON either — fine on a local bridge.
+			req.Header.Set("Accept-Encoding", "identity")
 		},
 		// -1 disables the default periodic-flush buffering so SSE (the /event
 		// and /api/event streams) reaches the browser immediately — the same
 		// requirement the console's task-events SSE proxy has. WebSocket
 		// upgrades (pty) are handled transparently by ReverseProxy.
 		FlushInterval: -1,
+		ModifyResponse: func(resp *http.Response) error {
+			// Seed the workspace project into the SPA's per-browser store only on
+			// the app shell (GET /). The store lives in localStorage keyed by
+			// scope, so a fresh browser/device has NO idea the sandbox workspace
+			// exists and shows "Nothing here yet" — that's the cross-device
+			// "my conversations disappeared" bug. Injecting the project (+ the
+			// home selection) makes every device show the workspace and its
+			// server-side sessions on first load.
+			if r.Method != http.MethodGet || r.URL.Path != "/" {
+				return nil
+			}
+			if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Encoding") != "" {
+				return nil
+			}
+			if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
+				return nil
+			}
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+			resp.Body.Close()
+			seeded := injectOpencodeWebSeed(body, sandboxAppDir)
+			if len(seeded) == len(body) {
+				resp.Body = io.NopCloser(bytes.NewReader(body))
+				return nil
+			}
+			resp.Header.Del("Content-Length")
+			resp.Body = io.NopCloser(bytes.NewReader(seeded))
+			// The SPA shell carries a strict Content-Security-Policy with no
+			// 'unsafe-inline', so the injected inline seed script must be
+			// allow-listed by its sha256 hash or the browser refuses to run it
+			// (and the whole feature silently no-ops).
+			if script := opencodeWebSeedScript(sandboxAppDir); script != "" {
+				if csp := resp.Header.Get("Content-Security-Policy"); csp != "" {
+					resp.Header.Set("Content-Security-Policy", opencodeWebCSPAllowScript(csp, []byte(script)))
+				}
+			}
+			return nil
+		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			writeOpencodeWebPage(w, http.StatusBadGateway, "opencode web: "+err.Error())
 		},
 	}
 	proxy.ServeHTTP(w, r)
+}
+
+// opencodeWebSeedScript builds the bootstrap script sandboxd injects into the
+// OpenCode web SPA shell. Before the bundle runs it pre-registers the sandbox's
+// app workspace in the client's per-browser project store, so a first visit
+// from ANY device already shows the project (and, once selected, its sessions —
+// which live server-side) instead of "Nothing here yet".
+//
+// Keys mirror OpenCode web's own persistence (utils/persist.ts):
+//   - "opencode.global.dat:server" — ServerProjectState {list, projects,
+//     lastProject, recentlyClosed}; project rows live under
+//     projects["local"] because the default server's scope always resolves to
+//     "local" (ServerScope.fromServerKey) regardless of the device's URL.
+//   - "opencode.global.dat:layout" — home.selection selects the project so the
+//     session list is visible immediately; a partial layout is fine because
+//     OpenCode's persisted() deep-merges stored state over its defaults.
+//
+// Only the first-visit (empty-store) case is seeded — a store the app already
+// wrote is the user's own state and is left alone. Returns "" if dir is empty.
+func opencodeWebSeedScript(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	dirJSON, _ := json.Marshal(dir)
+	script := `(function () {
+  try {
+    var dir = ` + string(dirJSON) + `;
+    var origin = location.origin;
+    var serverKey = "opencode.global.dat:server";
+    var layoutKey = "opencode.global.dat:layout";
+    var store = null;
+    try { store = JSON.parse(localStorage.getItem(serverKey) || "null"); } catch (e) {}
+    if (!store || typeof store !== "object") {
+      localStorage.setItem(serverKey, JSON.stringify({
+        list: [],
+        projects: { local: [{ worktree: dir, expanded: true }] },
+        lastProject: { local: dir },
+        recentlyClosed: {}
+      }));
+    }
+    var layout = null;
+    try { layout = JSON.parse(localStorage.getItem(layoutKey) || "null"); } catch (e) {}
+    if (!layout || typeof layout !== "object") {
+      layout = { home: { selection: { server: origin, directory: dir } } };
+      localStorage.setItem(layoutKey, JSON.stringify(layout));
+    } else if (layout.home && layout.home.selection && !layout.home.selection.directory) {
+      layout.home.selection.directory = dir;
+      if (!layout.home.selection.server) layout.home.selection.server = origin;
+      localStorage.setItem(layoutKey, JSON.stringify(layout));
+    }
+  } catch (e) {}
+})();
+`
+	return script
+}
+
+// injectOpencodeWebSeed embeds the seed script into the SPA shell just before
+// </head>, so it runs before the deferred module bundle does. Returns the input
+// unchanged if the markup has no </head>.
+func injectOpencodeWebSeed(body []byte, dir string) []byte {
+	script := opencodeWebSeedScript(dir)
+	if script == "" {
+		return body
+	}
+	marker := "</head>"
+	if i := bytes.Index(body, []byte(marker)); i >= 0 {
+		out := make([]byte, 0, len(body)+len(script))
+		out = append(out, body[:i]...)
+		out = append(out, "<script>"...)
+		out = append(out, script...)
+		out = append(out, "</script>"...)
+		out = append(out, body[i:]...)
+		return out
+	}
+	return body
+}
+
+// opencodeWebCSPAllowScript appends the sha256 hash of an inline script to the
+// Content-Security-Policy's script-src directive (adding the directive if the
+// policy has none). Inline scripts are otherwise blocked by policies that lack
+// 'unsafe-inline'. If the hash is already present the policy is returned as-is.
+func opencodeWebCSPAllowScript(csp string, script []byte) string {
+	if csp == "" || len(script) == 0 {
+		return csp
+	}
+	sum := sha256.Sum256(script)
+	hash := "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"
+	directives := strings.Split(csp, ";")
+	for i, d := range directives {
+		if !strings.HasPrefix(strings.TrimSpace(d), "script-src") {
+			continue
+		}
+		if strings.Contains(d, hash) {
+			return csp
+		}
+		directives[i] = d + " " + hash
+		return strings.Join(directives, ";")
+	}
+	directives = append(directives, "script-src "+hash)
+	return strings.Join(directives, "; ")
 }
 
 // opencodeWebStaticPath reports whether the path is a static asset the SPA's

@@ -106,7 +106,9 @@ The console isn't only for coders. Open it and, in **one click or one prompt**, 
 - **✨ Build from scratch** — describe an app and watch the agent build it in the live preview, then commit &amp; push.
 - **🤖 Chat with the real OpenCode** — the Overview tab embeds OpenCode's native
   web UI (per-app sandbox, full session/terminal/file editing), replacing the
-  old bespoke chat.
+  old bespoke chat. Your conversations follow you: every device that opens a
+  sandbox automatically sees its workspace and sessions (the client's
+  browser-local project registry is pre-seeded by the control plane).
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/ghost.webp" height="38" alt="Ghost" title="Ghost" hspace="7" />
