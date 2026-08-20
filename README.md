@@ -1,4 +1,4 @@
-<h1 align="center">sandboxd</h1>
+<h1 align="center">sandboxd <small>· fork <code>nordineonline-sudo</code></small></h1>
 
 <p align="center">
   <b>Open-source, self-hosted AI app builder.</b><br/>
@@ -6,69 +6,22 @@
   server — each live at a preview URL. You own the infra, code, and data. MIT.
 </p>
 
-<h3 align="center">🔥 Trend of the Day on Trendshift</h3>
-
 <p align="center">
-  <a href="https://trendshift.io/repositories/45741?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-45741" target="_blank" rel="noopener noreferrer">
-    <img
-      src="https://trendshift.io/api/badge/trendshift/repositories/45741/daily?language=Go"
-      alt="sandboxd • Trend of the Day on Trendshift"
-      width="320"
-    />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://sandboxd.io/demo/"><img alt="Live demo" src="https://img.shields.io/badge/%E2%96%B6%20Live%20demo-try%20it%20in%20your%20browser-ff6b00?style=for-the-badge"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/stargazers"><img alt="Star sandboxd" src="https://img.shields.io/github/stars/nordineonline-sudo/sandboxd?style=for-the-badge&label=%E2%98%85%20Star&color=333"></a>
   &nbsp;
-  <a href="https://sandboxd.io/quickstart"><img alt="Get started" src="https://img.shields.io/badge/Get%20started-one%20command-0a0a0a?style=for-the-badge"></a>
-  &nbsp;
-  <a href="https://github.com/tastyeffectco/sandboxd/stargazers"><img alt="Star sandboxd" src="https://img.shields.io/github/stars/tastyeffectco/sandboxd?style=for-the-badge&label=%E2%98%85%20Star&color=333"></a>
-</p>
-
-<p align="center">
-  <a href="https://sandboxd.io"><img alt="Docs" src="https://img.shields.io/badge/docs-sandboxd.io-ff6b00.svg"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/tastyeffectco/sandboxd/releases"><img alt="Release" src="https://img.shields.io/github/v/release/tastyeffectco/sandboxd?color=00ADD8"></a>
-  <a href="https://github.com/sponsors/tastyeffectco"><img alt="Sponsor" src="https://img.shields.io/badge/%E2%9D%A4%20Sponsor-tastyeffectco-db61a2?logo=githubsponsors&logoColor=white"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.0--nordineonline.2-00ADD8"></a>
 </p>
 
 ---
 
-<p align="center"><b>Prompt → a real, running app on <i>your</i> server, at its own URL.</b><br/>See it in action 👇</p>
-
-<div align="center">
-<table>
-  <tr>
-    <td width="50%"><img alt="Build an app from a prompt in the sandboxd console" src="https://github.com/user-attachments/assets/582f5c46-af57-41c1-b9ed-4081d1075c51"><br><sub><b>1 · Build from a prompt</b> — an agent builds it in an isolated sandbox, live at a preview URL.</sub></td>
-    <td width="50%"><img alt="Run an existing open-source app (n8n) in sandboxd" src="https://github.com/user-attachments/assets/a89b03c9-0f4d-4b19-b190-ecd27dd10d10"><br><sub><b>2 · Or run an existing app</b> — n8n, Ghost, Grafana… 80+ curated apps, one click.</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img alt="Drive sandboxd from the API / CLI" src="https://github.com/user-attachments/assets/0854fbd6-6801-42e3-bb42-55f8a4f9ead7"><br><sub><b>3 · Or drive the API</b> — every action is a <code>/v1</code> call, headless &amp; scriptable.</sub></td>
-    <td width="50%" align="center"><br><b>▶ <a href="https://sandboxd.io/demo/">Try the live demo</a></b><br><br><sub>Click around a real console with sample data — no install.</sub></td>
-  </tr>
-</table>
-</div>
-
----
-
-<h3 align="center">📣 Stay in the loop</h3>
-
-<p align="center">
-  Self-hosting is <b>MIT and free, forever</b> — <code>git clone</code> and you're done.<br/>
-  Want the <b>1.0 release + occasional product updates</b>, or a <b>managed cloud</b> so you don't run the box yourself? Two links:
-</p>
-
-<p align="center">
-  <a href="https://sandboxd.io/?news=1"><img alt="Get 1.0 + release news" src="https://img.shields.io/badge/%F0%9F%93%AC%20Get%201.0%20%2B%20release%20news-subscribe-0a0a0a?style=for-the-badge"></a>
-  &nbsp;
-  <a href="https://sandboxd.io/?waitlist=cloud"><img alt="sandboxd Cloud waitlist" src="https://img.shields.io/badge/%E2%98%81%EF%B8%8F%20sandboxd%20Cloud-join%20the%20waitlist-ff6b00?style=for-the-badge"></a>
-</p>
-
-<p align="center"><sub>No spam, one-click unsubscribe, and the cloud is <b>optional</b> — the self-hosted engine is always the full product.</sub></p>
-
----
+> **This is the `nordineonline-sudo/sandboxd` fork** of
+> [`tastyeffectco/sandboxd`](https://github.com/tastyeffectco/sandboxd). It ships
+> everything from upstream **plus the changes documented in
+> [Changes in this fork](#changes-in-this-fork)**. The engine, the API, and the
+> self-hosted model are unchanged: one Go binary driving Docker, Traefik for URLs,
+> SQLite for state.
 
 ## What is sandboxd?
 
@@ -106,43 +59,35 @@ The console isn't only for coders. Open it and, in **one click or one prompt**, 
 - **✨ Build from scratch** — describe an app and watch the agent build it in the live preview, then commit &amp; push.
 - **🤖 Chat with the real OpenCode** — the Overview tab embeds OpenCode's native
   web UI (per-app sandbox, full session/terminal/file editing), replacing the
-  old bespoke chat. Your conversations follow you: every device that opens a
-  sandbox automatically sees its workspace and sessions (the client's
-  browser-local project registry is pre-seeded by the control plane).
+  old bespoke chat. See [Changes in this fork](#changes-in-this-fork) for how this
+  fork wires OpenCode's web UI in and makes your conversations follow you across
+  devices.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/ghost.webp" height="38" alt="Ghost" title="Ghost" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/n8n.svg" height="38" alt="n8n" title="n8n" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/directus.svg" height="38" alt="Directus" title="Directus" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/gitea.svg" height="38" alt="Gitea" title="Gitea" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/forgejo.svg" height="38" alt="Forgejo" title="Forgejo" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/grafana.svg" height="38" alt="Grafana" title="Grafana" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/metabase.svg" height="38" alt="Metabase" title="Metabase" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/code-server.webp" height="38" alt="code-server" title="code-server" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/jupyter.svg" height="38" alt="Jupyter" title="Jupyter" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/keycloak.svg" height="38" alt="Keycloak" title="Keycloak" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/pocketbase.svg" height="38" alt="PocketBase" title="PocketBase" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/uptime-kuma.svg" height="38" alt="Uptime Kuma" title="Uptime Kuma" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/vikunja.svg" height="38" alt="Vikunja" title="Vikunja" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/wikijs.svg" height="38" alt="Wiki.js" title="Wiki.js" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/triliumnext.svg" height="38" alt="Trilium" title="Trilium" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/memos.webp" height="38" alt="Memos" title="Memos" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/meilisearch.svg" height="38" alt="Meilisearch" title="Meilisearch" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/qdrant.svg" height="38" alt="Qdrant" title="Qdrant" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/chroma.svg" height="38" alt="Chroma" title="Chroma" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/open-webui.svg" height="38" alt="Open WebUI" title="Open WebUI" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/navidrome.svg" height="38" alt="Navidrome" title="Navidrome" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/audiobookshelf.svg" height="38" alt="Audiobookshelf" title="Audiobookshelf" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/calibre-web.svg" height="38" alt="Calibre-Web" title="Calibre-Web" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/actualbudget.svg" height="38" alt="Actual Budget" title="Actual Budget" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/syncthing.svg" height="38" alt="Syncthing" title="Syncthing" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/prefect.svg" height="38" alt="Prefect" title="Prefect" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/marimo.svg" height="38" alt="marimo" title="marimo" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/homepage.webp" height="38" alt="Homepage" title="Homepage" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/ntfy.svg" height="38" alt="ntfy" title="ntfy" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/gotify.svg" height="38" alt="Gotify" title="Gotify" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/linkding.svg" height="38" alt="linkding" title="linkding" hspace="7" />
-  <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/superset.svg" height="38" alt="Superset" title="Superset" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/ghost.webp" height="38" alt="Ghost" title="Ghost" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/n8n.svg" height="38" alt="n8n" title="n8n" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/directus.svg" height="38" alt="Directus" title="Directus" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/gitea.svg" height="38" alt="Gitea" title="Gitea" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/grafana.svg" height="38" alt="Grafana" title="Grafana" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/metabase.svg" height="38" alt="Metabase" title="Metabase" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/code-server.webp" height="38" alt="code-server" title="code-server" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/jupyter.svg" height="38" alt="Jupyter" title="Jupyter" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/keycloak.svg" height="38" alt="Keycloak" title="Keycloak" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/pocketbase.svg" height="38" alt="PocketBase" title="PocketBase" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/uptime-kuma.svg" height="38" alt="Uptime Kuma" title="Uptime Kuma" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/vikunja.svg" height="38" alt="Vikunja" title="Vikunja" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/wikijs.svg" height="38" alt="Wiki.js" title="Wiki.js" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/memos.webp" height="38" alt="Memos" title="Memos" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/meilisearch.svg" height="38" alt="Meilisearch" title="Meilisearch" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/qdrant.svg" height="38" alt="Qdrant" title="Qdrant" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/open-webui.svg" height="38" alt="Open WebUI" title="Open WebUI" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/navidrome.svg" height="38" alt="Navidrome" title="Navidrome" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/audiobookshelf.svg" height="38" alt="Audiobookshelf" title="Audiobookshelf" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/actualbudget.svg" height="38" alt="Actual Budget" title="Actual Budget" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/prefect.svg" height="38" alt="Prefect" title="Prefect" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/marimo.svg" height="38" alt="marimo" title="marimo" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/ntfy.svg" height="38" alt="ntfy" title="ntfy" hspace="7" />
+  <img src="https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/console/public/app-icons/gotify.svg" height="38" alt="Gotify" title="Gotify" hspace="7" />
 </p>
 
 <p align="center">
@@ -150,24 +95,78 @@ The console isn't only for coders. Open it and, in **one click or one prompt**, 
   Any Node, Python, or static-binary app boots as-is; anything else, bring your own base image or preset.</i>
 </p>
 
-<p align="center">
-  <a href="https://sandboxd.io/guides/apps-in-the-console"><b>Ways to run an app →</b></a> &nbsp;·&nbsp;
-  <a href="https://sandboxd.io/guides/images-stacks-presets">Base image, stacks &amp; presets</a> &nbsp;·&nbsp;
-  <a href="https://sandboxd.io/reference/architecture">Architecture</a>
-</p>
+## Changes in this fork
 
-> **Dev → prod, never shorter:** prompt an app into a sandbox, iterate on a live
-> preview, then self-host it on your own server in [one command](#-deploy-to-a-vps-in-one-click).
+This fork tracks upstream `main` and layers the following changes on top. Each is
+also recorded in the [`CHANGELOG`](CHANGELOG.md).
+
+### 1. Embedded OpenCode web console (per-app)
+*Commits `aeab961`, plus the control-plane proxy pieces.*
+
+The console's **Overview tab no longer uses the old bespoke chat** — it embeds
+**OpenCode's native web UI** in an iframe, one per app:
+
+- Each sandbox gets a dedicated **`opencode-<id>.preview.<domain>`** host, served
+  through the same Traefik edge as the app previews.
+- The control plane reverse-proxies that host into the sandbox's internal
+  `opencode web` (`control-plane/internal/api/v1_opencode_web.go`): it validates
+  a **per-sandbox auth token** (`?auth_token=` or Basic auth), passes static
+  assets through, and streams SSE / websocket (pty) traffic.
+- The token is minted by the control plane and surfaced to the console via a new
+  endpoint, **`GET /v1/sandboxes/{id}/opencode-url`**.
+- The proxy is **CSP-aware**: injected scripts are allow-listed in the page's
+  Content-Security-Policy by **sha256 hash**, so the embedded UI works without
+  relaxing the sandbox's headers.
+- `docs/openapi.yaml` documents the new endpoint; the `runtimed` supervisor
+  launches `opencode web` inside the sandbox.
+
+### 2. Conversations follow you across devices
+*Commit `3712096`.*
+
+OpenCode's web client keeps its **project registry in the browser's localStorage**
+— so a fresh device used to show *"Nothing here yet"* even though the app already
+had real sessions. This fork fixes that end-to-end:
+
+- On first load, the control-plane proxy **pre-seeds the app workspace into the
+  client's project store** (`opencode.global.dat:server`, scope `local`) and sets
+  `home.selection`, so the sandbox's workspace appears in the sidebar.
+- Seeding only happens **if the store is empty** — a user's own projects are never
+  overwritten.
+- Result: open a sandbox from **any device** and you immediately see the same
+  workspace and conversation history.
+
+### 3. Mobile responsiveness
+*Commits `942626a`, `28745f0`.*
+
+- The **Overview / Files / Git layouts and the top bar** adapt to small screens
+  (single-column grid, touch-friendly).
+- Fixed a **mobile-only overflow bug** where wide content was silently clipped in
+  the single-column layout.
+
+### 4. Better chat input on mobile
+*Commits `0d15b67`, `223e302`.*
+
+- The agent chat textarea is now **multiline and auto-growing**.
+- On mobile, **Enter inserts a newline instead of sending** — touch keyboards
+  have no Shift key, so the old behavior made multi-line messages impossible.
+  Desktop behaviour is unchanged (Enter sends, Shift+Enter inserts a newline).
+
+### Where the fork differs operationally
+
+- **Versioning** is pinned for the deployment: images are tagged
+  `sandboxd-base` / `sandboxd-control-plane` / `sandboxd-console` at
+  `0.4.0-nordineonline.<n>` (no floating `latest`). Bump the tag in
+  [`docker-compose.yml`](docker-compose.yml), `console/package.json` and
+  [`image/README.md`](image/README.md) together when you release.
+- The install/deploy scripts below install **this** repo, not upstream.
 
 ## Quick start
 
 Needs **Docker + the Compose plugin** and **git** on Linux (macOS via Docker
-Desktop is best-effort). Runs natively on **amd64 and arm64** — including
-Apple Silicon Macs and arm64 Linux hosts (e.g. AWS Graviton) — every image
-builds from multi-arch bases with no cross-compilation. Install in one line:
+Desktop is best-effort). Runs natively on **amd64 and arm64**. Install in one line:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/install.sh | bash
 ```
 
 It builds the images, starts the stack **with the web console**, and prints your
@@ -191,31 +190,14 @@ curl -s -XPOST $API/v1/sandboxes/$ID/tasks -d '{"prompt":"build a todo app on po
 # open the result at  http://s-$ID-3000.preview.localhost
 ```
 
-**Full walkthrough → [sandboxd.io/quickstart](https://sandboxd.io/quickstart).**
-
 ## 🚀 Deploy to a VPS in one click
 
-sandboxd needs one Linux server with Docker — nothing else. Grab a server
-below (2 vCPU / 4 GB is plenty to start), paste our
-[cloud-init file](deploy/cloud-init.yaml) at creation, and it installs itself.
-
-> **Disclosure:** we earn a referral commission when you sign up through the
-> provider links below, at no additional cost to you. It helps fund sandboxd's
-> development.
-
-[![Deploy on Vultr](https://img.shields.io/badge/Deploy%20on-Vultr-007BFC?logo=vultr&logoColor=white&style=for-the-badge)](https://www.vultr.com/?ref=9912150)
-
-<!-- ENABLE THESE AS EACH AFFILIATE LINK ARRIVES (uncomment + replace placeholder):
-[![Deploy on DigitalOcean](https://img.shields.io/badge/Deploy%20on-DigitalOcean-0080FF?logo=digitalocean&logoColor=white&style=for-the-badge)](YOUR_DO_AWIN_LINK)
-[![Deploy on Kamatera](https://img.shields.io/badge/Deploy%20on-Kamatera-FF6A00?style=for-the-badge)](YOUR_KAMATERA_AFF_LINK)
-[![Deploy on Hostinger](https://img.shields.io/badge/Deploy%20on-Hostinger-673DE6?logo=hostinger&logoColor=white&style=for-the-badge)](YOUR_HOSTINGER_AFF_LINK)
-Linode removed — cash affiliate program discontinued (credits only as of Jul 2026).
--->
-
-Then on the new server (or paste [`deploy/cloud-init.yaml`](deploy/cloud-init.yaml) as user-data and skip this):
+sandboxd needs one Linux server with Docker — nothing else. Paste the repo's
+[cloud-init file](deploy/cloud-init.yaml) at creation, or run the bootstrap on the
+fresh server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/deploy/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/nordineonline-sudo/sandboxd/main/deploy/bootstrap.sh | sudo bash
 ```
 
 Full per-provider walkthrough: [deploy/DEPLOY.md](deploy/DEPLOY.md).
@@ -242,64 +224,19 @@ environments, or team multi-app hosting.
 
 **❌ Skip it** if you just need one or two containers for yourself — a shell
 script or `docker run` is simpler.
-([Why not just a script?](https://sandboxd.io/what-is-sandboxd))
-
-## Managed — we run it for you
-
-Don't want to run the server yourself? We'll **install, configure, and manage
-sandboxd on your own box** — BYOC (your compute, your data, no lock-in). One-time
-setup + optional monthly management. **[See Managed →](https://sandboxd.io/managed)**
 
 ## Documentation
 
-Full docs live at **[sandboxd.io](https://sandboxd.io)**:
+- [`AGENTS.md`](AGENTS.md) — copy-pasteable runbook for building on sandboxd from your own agent
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — how the control plane, edge and sandboxes fit together
+- [`docs/`](docs/) — configuration, upgrading, production/TLS
+- Upstream docs: [sandboxd.io](https://sandboxd.io) (covers the engine; this fork's changes are listed above)
 
-| Getting started | Guides | Reference |
-|---|---|---|
-| [What is sandboxd?](https://sandboxd.io/what-is-sandboxd) | [The web console](https://sandboxd.io/guides/console) · [Get an app running](https://sandboxd.io/guides/apps-in-the-console) | [API (OpenAPI)](https://sandboxd.io/reference/api) |
-| [Quickstart](https://sandboxd.io/quickstart) | [Coding agents](https://sandboxd.io/guides/agents) | [Configuration](https://sandboxd.io/reference/configuration) |
-| [Core concepts](https://sandboxd.io/concepts) | [Base image, stacks &amp; presets](https://sandboxd.io/guides/images-stacks-presets) | [Architecture](https://sandboxd.io/reference/architecture) |
-| [Roadmap](https://sandboxd.io/roadmap) | [Presets &amp; `sandbox.yaml`](https://sandboxd.io/guides/images-stacks-presets) · [Auto-detection &amp; App Store](https://sandboxd.io/guides/runtime-and-store) · [Undo a task](https://sandboxd.io/guides/tasks) · [Production / TLS](https://sandboxd.io/guides/production-tls) · [Hardening](https://sandboxd.io/guides/hardening) · [Uninstall](https://sandboxd.io/guides/uninstall) | [`AGENTS.md`](AGENTS.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) |
+## Changelog
 
-Building on it from your own agent? **[`AGENTS.md`](AGENTS.md)** is a
-copy-pasteable runbook.
-
-## Roadmap &amp; community
-
-- 🗺️ **Roadmap** — [what's shipped &amp; next](https://sandboxd.io/roadmap) · [public project board](https://github.com/users/tastyeffectco/projects/3)
-- 💬 **Discussions** — [ask &amp; get self-hosting help](https://github.com/tastyeffectco/sandboxd/discussions)
-- 🤝 **Contribute** — good first PRs: add a runtime preset or an App Store recipe ([`CONTRIBUTING.md`](CONTRIBUTING.md))
-- 🔒 **Security** — report privately per [`SECURITY.md`](SECURITY.md)
-
-> **Beta · 0.x.** Container isolation (not VMs), single-server, and API auth off
-> by default — all fine for your own users; tighten before untrusted
-> multi-tenancy. See [Hardening](https://sandboxd.io/guides/hardening). Expect the
-> occasional breaking change before 1.0 — pin a version and update as you go.
-
-## ⭐ If sandboxd is useful, star it
-
-Stars are how other builders find sandboxd — it's the fastest way to support the
-project (and it keeps us going). Thank you 🙏
-
+All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
+`0.4.0-nordineonline.<n>`.
 
 ## License
 
 [MIT](LICENSE). Use it, ship it, sell what you build on it.
-
-## Sponsors
-
-sandboxd is free and MIT-licensed. **Sponsors keep it maintained and fund the
-[deploy roadmap](https://github.com/sponsors/tastyeffectco)** — thank you to
-everyone who chips in.
-
-<!--
-  SPONSOR LOGO WALL — how to add a sponsor:
-  Drop a cell into the <p align="center"> grid below (highest tiers first):
-      <a href="https://SPONSOR_SITE"><img src="LOGO_URL" width="130" alt="Sponsor Name"></a>
-  Guidelines: logo ~130px wide, PNG or SVG, hosted on a stable URL. Remove the
-  placeholder <em> line once the first real logo lands.
--->
-<p align="center">
-  <!-- sponsor logos go here -->
-  <em>No sponsors yet — <a href="https://github.com/sponsors/tastyeffectco">be the first</a>.</em>
-</p>

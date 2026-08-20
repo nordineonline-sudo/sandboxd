@@ -6,6 +6,15 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.0-nordineonline.2] — 2026-08-20
+
+* release(prod): production release of the fork — pinned image tags
+  (`sandboxd-base`, `sandboxd-control-plane`, `sandboxd-console`) for the
+  `nordineonline-sudo/sandboxd` deployment, by @nordineonline-sudo (fork)
+* docs: rewrite the top-level README for this fork (repo links, install from
+  this git, changelog) and document every evolution vs upstream — embedded
+  OpenCode web console, cross-device sessions, mobile fixes — by @nordineonline-sudo (fork)
+
 ## [0.4.0-nordineonline.1] — 2026-08-20
 
 * feat(console): embed the native **OpenCode web** UI per app — the Overview tab
