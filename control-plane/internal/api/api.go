@@ -170,6 +170,13 @@ type Server struct {
 	// gets this base URL + a dummy key, and the proxy injects the real bearer.
 	// Empty → legacy behaviour (credential mounted into the sandbox).
 	AgentProxyURL string
+
+	// OpencodeWebKey is the 32-byte master key opencodeWebPassword derives each
+	// sandbox's `opencode web` HTTP Basic password from (HMAC-SHA256, keyed on
+	// the sandbox ID — nothing new to persist). nil disables the feature: no
+	// password is handed to runtimed at create, and GET /v1/sandboxes/{id}/opencode/
+	// returns 503. See opencodeweb.go and docs/agent-auth.md → "OpenCode Web".
+	OpencodeWebKey []byte
 }
 
 // agentAuthBaseMount is the in-container parent dir under which each connected
@@ -249,6 +256,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sandboxes/{id}/export", s.observe("GET /v1/sandboxes/{id}/export", s.v1Export))
 	mux.HandleFunc("GET /v1/sandboxes/{id}/processes/{name}/logs", s.observe("GET /v1/sandboxes/{id}/processes/{name}/logs", s.v1ProcessLogs))
 	mux.HandleFunc("GET /v1/sandboxes/{id}/terminal", s.observe("GET /v1/sandboxes/{id}/terminal", s.v1Terminal))
+	// Embed URL for the OpenCode web iframe (dedicated host — see
+	// v1_opencode_web.go for why the app can't live under a /v1 sub-path).
+	mux.HandleFunc("GET /v1/sandboxes/{id}/opencode-url", s.observe("GET /v1/sandboxes/{id}/opencode-url", s.v1OpencodeURL))
 
 	// Durable apps above sandboxes (Phase 1).
 	mux.HandleFunc("GET /v1/settings", s.observe("GET /v1/settings", s.v1GetSettings))

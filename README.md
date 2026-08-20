@@ -104,6 +104,9 @@ The console isn't only for coders. Open it and, in **one click or one prompt**, 
 - **🧩 Start from a starter** — a React/Vite, Next.js, or FastAPI scaffold that boots to a live preview; then just *chat* to shape it.
 - **📥 Bring your own repo** — import any **public** Git repo (no credential needed) and let a coding agent work on it.
 - **✨ Build from scratch** — describe an app and watch the agent build it in the live preview, then commit &amp; push.
+- **🤖 Chat with the real OpenCode** — the Overview tab embeds OpenCode's native
+  web UI (per-app sandbox, full session/terminal/file editing), replacing the
+  old bespoke chat.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/tastyeffectco/sandboxd/main/console/public/app-icons/ghost.webp" height="38" alt="Ghost" title="Ghost" hspace="7" />

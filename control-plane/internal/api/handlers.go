@@ -720,6 +720,14 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 	if s.OpencodeZenPath != "" {
 		envFlags = append(envFlags, "SANDBOXD_OPENCODE_ZEN_PATH="+s.OpencodeZenPath)
 	}
+	// OpenCode Web embed: the console iframes a dedicated host
+	// (opencode-<id>.preview.<domain>), which the control plane proxies (with
+	// this password injected as HTTP Basic) to `opencode web` running inside the
+	// sandbox. Empty OpencodeWebKey → no password handed down → runtimed leaves
+	// the feature off.
+	if len(s.OpencodeWebKey) > 0 {
+		envFlags = append(envFlags, "RUNTIMED_OPENCODE_WEB_PASSWORD="+opencodeWebPassword(s.OpencodeWebKey, req.ID))
+	}
 
 	// 2. docker run with the locked flag set + traefik labels.
 	// A1.5a — ensure the resolved web port has a preview router. ADDITIVE: never

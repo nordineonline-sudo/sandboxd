@@ -497,6 +497,9 @@ export const api = {
     req<{ status: string }>('POST', `/v1/sandboxes/${id}/tasks/${taskId}/revert`),
   taskEventsURL: (id: string, taskId: string) =>
     `/v1/sandboxes/${id}/tasks/${taskId}/events`,
+  // Embed URL for the OpenCode web iframe (dedicated host + per-sandbox token).
+  opencodeURL: (id: string) =>
+    req<{ url: string }>('GET', `/v1/sandboxes/${id}/opencode-url`).then((r) => r.url),
 
   createSnapshot: (sandboxId: string, name: string) =>
     req<{ id: string }>('POST', '/v1/snapshots', { source_sandbox_id: sandboxId, name }),

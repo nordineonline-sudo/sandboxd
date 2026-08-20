@@ -1,5 +1,5 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
-import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, TaskSummary, RuntimeSuggestion } from './api'
+import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, RuntimeSuggestion } from './api'
 import { c, font, mono, Card, H, Btn, Pill, StatusPill, statusTone, Input, tab, useIsMobile } from './design/kit'
 import { DeployModal } from './DeployModal'
 import { IS_DEMO } from './demo'
@@ -610,193 +610,58 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
   )
 }
 
-function AgentChat({ sb, onError, toast, refresh }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void }) {
+// ---------- AGENT (OpenCode's own web UI, embedded) ----------
+// Replaces the old bespoke chat: the console iframes OpenCode's native session
+// UI (opencode.ai/docs/web) instead of re-implementing a chat, so every project
+// gets OpenCode's real provider/model catalog — whatever the owner connects
+// inside it (GitHub Copilot, Anthropic, OpenRouter, local Ollama, …) — with no
+// sandboxd-side provider work. Isolation is structural: each sandbox is its own
+// container with its own OpenCode instance, so switching apps can never mix up
+// sessions or credentials. See docs/agent-auth.md → "OpenCode Web".
+//
+// The frame src is the sandbox's dedicated host
+// (opencode-<id>.preview.<domain>?auth_token=…), minted by the control plane —
+// OpenCode's web client resolves its API base from location.origin with
+// hardcoded absolute paths, so it can't live under a /v1 sub-path. The token is
+// per-sandbox and only issued to authenticated console sessions.
+function AgentChat({ sb }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void }) {
   const isMobile = useIsMobile()
-  const [agent, setAgent] = useState('opencode')
-  const [model, setModel] = useState('')
-  const [cont, setCont] = useState(true) // continue the last agent session by default
-  const [text, setText] = useState('')
-  const [history, setHistory] = useState<TaskSummary[]>([]) // completed turns, chronological (durable)
-  const [live, setLive] = useState<{ prompt: string; text: string } | null>(null) // the in-flight turn
-  const [running, setRunning] = useState(false)
-  const [resolved, setResolved] = useState('')
-  const [reverting, setReverting] = useState<string | null>(null)
-  const esRef = useRef<EventSource | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const sandboxRunning = sb?.status === 'running'
-  const [agentConnected, setAgentConnected] = useState<boolean | null>(null)
-  // Block input only when the selected agent needs a credential and has none.
-  // opencode is exempt: it runs on a keyless free tier out of the box, so an
-  // un-connected opencode is still usable (we just show a free-tier note).
-  const inputBlocked = agentConnected === false && agent !== 'opencode'
+  const height = isMobile ? '70vh' : 640
+  const [ocURL, setOcURL] = useState<string | null>(null)
+  const [ocErr, setOcErr] = useState('')
 
-  // Is the selected agent actually connected? For non-opencode agents a task with
-  // no connected agent fails immediately with an auth error — gate the input so
-  // users connect one in Settings first instead of hitting a confusing failed run.
-  // opencode always runs (free tier), so it's never blocked (see inputBlocked).
+  // Mint the embed URL (dedicated host + per-sandbox token) whenever the
+  // sandbox is running. Retried on manual refresh since a stopped sandbox
+  // clears it (the endpoint 409s while stopped).
   useEffect(() => {
+    if (!sb || sb.status !== 'running') { setOcURL(null); return }
     let alive = true
-    api.getAgents()
-      .then((list) => { if (alive) setAgentConnected(list.some((p) => p.id === agent && p.status === 'connected')) })
-      .catch(() => { if (alive) setAgentConnected(null) })
+    setOcErr('')
+    api.opencodeURL(sb.id)
+      .then((u) => { if (alive) setOcURL(u) })
+      .catch((e) => { if (alive) setOcErr((e as Error).message) })
     return () => { alive = false }
-  }, [agent, history.length])
+  }, [sb?.id, sb?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => () => { esRef.current?.close(); if (pollRef.current) clearInterval(pollRef.current) }, [])
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight }, [history, live, running])
-
-  const loadHistory = useCallback(async () => {
-    if (!sb) { setHistory([]); return }
-    try { const ts = await api.listTasks(sb.id); setHistory([...ts].reverse()) } catch { /* history is best-effort */ }
-  }, [sb?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { loadHistory() }, [loadHistory])
-
-  // The task result lands in the store a beat after `done`; poll until it shows.
-  const reloadUntil = async (taskId: string) => {
-    for (let i = 0; i < 8; i++) {
-      try { const ts = await api.listTasks(sb!.id); if (ts.some((t) => t.id === taskId)) { setHistory([...ts].reverse()); return } } catch { /* retry */ }
-      await new Promise((r) => setTimeout(r, 800))
-    }
-    loadHistory()
-  }
-
-  const promptRef = useRef<HTMLTextAreaElement>(null)
-  const send = async () => {
-    if (!sb || !sandboxRunning || !text.trim() || running) return
-    const prompt = text.trim()
-    setText(''); setLive({ prompt, text: '' }); setResolved(''); setRunning(true)
-    if (promptRef.current) promptRef.current.style.height = 'auto'
-    try {
-      const t = await api.submitTask(sb.id, prompt, agent, model || undefined, cont)
-      let agentText = ''
-      let settled = false
-      const finish = async () => {
-        if (settled) return
-        settled = true
-        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-        try { esRef.current?.close() } catch { /* */ }
-        setRunning(false); refresh(); await reloadUntil(t.id); setLive(null)
-      }
-      const es = new EventSource(api.taskEventsURL(sb.id, t.id))
-      esRef.current = es
-      es.addEventListener('status', (m) => { try { const j = JSON.parse((m as MessageEvent).data); if (j.model) setResolved(j.model) } catch { /* */ } })
-      es.addEventListener('message', (m) => {
-        try { const j = JSON.parse((m as MessageEvent).data); if (j.role === 'agent' && j.text) { agentText += j.text; setLive((l) => (l ? { ...l, text: agentText } : l)) } } catch { /* */ }
-      })
-      es.addEventListener('done', () => { finish() })
-      es.onerror = () => { try { es.close() } catch { /* */ } } // stream hiccup — the poll below still resolves it
-      // Reliability: never trust the SSE stream alone. A dropped or raced event
-      // stream must not leave the chat spinning — poll the task status until it
-      // reports terminal, with a watchdog cap so nothing can hang indefinitely.
-      let ticks = 0
-      pollRef.current = setInterval(async () => {
-        ticks++
-        try {
-          const cur = (await api.listTasks(sb.id)).find((x) => x.id === t.id)
-          if (cur && ['succeeded', 'failed', 'cancelled', 'error'].includes(cur.status)) { finish(); return }
-        } catch { /* */ }
-        if (ticks >= 360) finish() // ~15 min hard cap
-      }, 2500)
-    } catch (e) { setRunning(false); setLive(null); onError((e as Error).message) }
-  }
-
-  const revert = async (t: TaskSummary) => {
-    if (!sb) return
-    if (!window.confirm('Revert the workspace to BEFORE this task?\n\nThis discards every file change from this task onward (installed packages and build caches are kept). It cannot be undone.')) return
-    setReverting(t.id)
-    try { await api.revertTask(sb.id, t.id); toast('Reverted to checkpoint'); refresh(); await loadHistory() }
-    catch (e) { onError((e as Error).message) } finally { setReverting(null) }
-  }
-
-  const tone = (s: string) => (s === 'succeeded' ? c.good : s === 'failed' ? c.bad : s === 'cancelled' ? c.muted2 : c.warn)
-  const bubble = (role: 'user' | 'agent', text: string) => (
-    <div style={{ display: 'flex', justifyContent: role === 'user' ? 'flex-end' : 'flex-start' }}>
-      <div style={{ maxWidth: '85%', fontSize: 12.5, borderRadius: 9, padding: '8px 11px', whiteSpace: 'pre-wrap', background: role === 'user' ? c.ink : c.panel2, color: role === 'user' ? '#fff' : c.fg, border: role === 'user' ? 'none' : `1px solid ${c.border}` }}>{text}</div>
-    </div>
-  )
+  const panel: React.CSSProperties = { height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.muted2, fontSize: 13, textAlign: 'center', padding: 20 }
+  if (!sb) return <Card style={panel}>Create a sandbox to start building with the agent.</Card>
+  if (sb.status !== 'running') return <Card style={panel}>Start the sandbox to open the agent.</Card>
+  if (ocErr) return <Card style={panel}>Couldn't open the agent — {ocErr}</Card>
+  if (!ocURL) return <Card style={panel}>Starting the agent…</Card>
 
   return (
-    <Card style={{ display: 'flex', flexDirection: 'column', height: isMobile ? '70vh' : 640, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel3, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-        <H size={14}>Agent</H>
-        <div style={{ marginLeft: isMobile ? 0 : 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : undefined }}>
-          <label title="Continue the sandbox's most recent agent session instead of starting fresh" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: cont ? c.fg : c.muted2, cursor: 'pointer' }} data-testid="task-continue">
-            <input type="checkbox" checked={cont} onChange={(e) => setCont(e.target.checked)} style={{ accentColor: c.ink, width: 13, height: 13 }} />
-            Continue
-          </label>
-          <select value={agent} onChange={(e) => { setAgent(e.target.value); setModel('') }} data-testid="task-agent" style={selStyle}>
-            <option value="claude-code">Claude Code</option><option value="opencode">OpenCode</option>
-            {/* Codex hidden from the run picker until it's behind the auth proxy — the adapter is wired but subscription auth can't be secured yet. */}
-          </select>
-          <select value={model} onChange={(e) => setModel(e.target.value)} data-testid="task-model" style={selStyle}>
-            <option value="">Default model</option>
-            {agent === 'claude-code' && <><option value="sonnet">Sonnet</option><option value="opus">Opus</option><option value="haiku">Haiku</option></>}
-            {agent === 'opencode' && <><option value="opencode/glm-5">GLM-5</option><option value="opencode/kimi-k2.6">Kimi K2.6</option><option value="opencode/deepseek-v4-pro">DeepSeek V4 Pro</option><option value="opencode/MiniMax-M3">MiniMax M3</option><option value="opencode/MiniMax-M2.7">MiniMax M2.7</option></>}
-          </select>
-        </div>
-      </div>
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {history.length === 0 && !live && !running && (
-          <div style={{ margin: 'auto', textAlign: 'center', color: c.muted2, fontSize: 12.5, maxWidth: 220 }}>Ask the agent to change this app — it works inside the sandbox and nothing is committed until you approve.</div>
-        )}
-        {history.map((t) => {
-          const files = t.files_changed || []
-          return (
-            <Fragment key={t.id}>
-              {t.prompt && bubble('user', t.prompt)}
-              {bubble('agent', t.agent_message || t.error_message || `(${t.status})`)}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 2, fontSize: 11, color: c.muted2 }}>
-                <span style={{ ...mono, fontWeight: 700, color: tone(t.status), textTransform: 'uppercase' }}>{t.status}</span>
-                {files.length > 0 && <span title={files.join('\n')}>{files.length} file{files.length === 1 ? '' : 's'} changed</span>}
-                {t.can_revert && (
-                  <span
-                    onClick={() => sandboxRunning && reverting !== t.id && revert(t)}
-                    title={sandboxRunning ? 'Revert the workspace to before this task' : 'Start the sandbox to revert'}
-                    className={sandboxRunning ? 'dc-hoverink' : undefined}
-                    style={{ marginLeft: 'auto', cursor: sandboxRunning ? 'pointer' : 'default', color: sandboxRunning ? c.link : c.faint }}
-                  >{reverting === t.id ? 'reverting…' : '↩ revert'}</span>
-                )}
-              </div>
-            </Fragment>
-          )
-        })}
-        {live && <>{bubble('user', live.prompt)}{bubble('agent', live.text || '…')}</>}
-        {resolved && <div style={{ ...mono, fontSize: 10.5, color: c.muted2 }}>▸ {resolved}</div>}
-        {running && <div style={{ ...mono, fontSize: 11.5, color: c.muted2, animation: 'pulse 1.4s ease-in-out infinite' }}>▍ working…</div>}
-      </div>
-      {inputBlocked && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${c.border}`, background: c.panel2, fontSize: 12, color: c.fg }} data-testid="agent-not-connected">
-          ⚠ No <b>{agent === 'claude-code' ? 'Claude Code' : agent}</b> agent connected — connect one in <b>Settings → AI Agents</b> to start building.
-        </div>
-      )}
-      {agent === 'opencode' && agentConnected === false && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${c.border}`, background: c.panel2, fontSize: 12, color: c.muted2 }} data-testid="opencode-free-tier">
-          Using the <b>OpenCode free tier</b> — no setup needed. Connect an API key in <b>Settings → AI Agents</b> for the full model catalog.
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 8, padding: 10, borderTop: `1px solid ${c.border}`, background: c.panel3, alignItems: 'flex-end' }}>
-        <textarea
-          ref={promptRef}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value)
-            const el = e.target
-            el.style.height = 'auto'
-            el.style.height = `${Math.min(el.scrollHeight, 160)}px`
-          }}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); send() } }}
-          placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? (isMobile ? 'Message the agent…' : 'Message the agent… (Shift+Enter for a new line)') : 'Start the sandbox to run tasks'}
-          data-testid="task-prompt"
-          rows={2}
-          style={{ flex: 1, background: '#fff', border: `1px solid ${c.border2}`, borderRadius: 7, padding: '8px 11px', color: c.fg, fontSize: 12.5, fontFamily: font.sans, resize: 'vertical', minHeight: 46, maxHeight: 160, lineHeight: 1.4 }}
-        />
-        <Btn variant="primary" onClick={send} disabled={!sb || !sandboxRunning || running || inputBlocked} data-testid="run-task">Send</Btn>
-      </div>
+    <Card style={{ height, overflow: 'hidden', padding: 0 }} data-testid="opencode-web-panel">
+      <iframe
+        key={ocURL}
+        src={ocURL}
+        title="OpenCode"
+        data-testid="opencode-web-frame"
+        style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+        allow="clipboard-read; clipboard-write"
+      />
     </Card>
   )
 }
-const selStyle: React.CSSProperties = { background: c.bg, border: `1px solid ${c.border2}`, borderRadius: 7, padding: '5px 7px', color: c.fg, fontSize: 11.5, fontFamily: font.sans }
 
 // ---------- FILES ----------
 type TreeNode = { name: string; path: string; type: 'file' | 'dir'; size?: number; children: TreeNode[] }

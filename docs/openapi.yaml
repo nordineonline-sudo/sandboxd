@@ -1372,6 +1372,33 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /v1/sandboxes/{id}/opencode-url:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    get:
+      operationId: sandboxOpencodeUrl
+      tags: [sandboxes]
+      summary: Embed URL for the sandbox's OpenCode web UI
+      description: >
+        Returns the URL the console iframes to embed OpenCode's own web UI for
+        this sandbox (opencode-<id>.preview.<domain>?auth_token=…). OpenCode's
+        web client resolves its API base from the page origin with hardcoded
+        absolute paths, so it is served on a dedicated per-sandbox host rather
+        than under a /v1 sub-path; the per-sandbox token is issued only to
+        callers already authenticated to this API. 409 when the sandbox is not
+        running; 503 when the instance has no SANDBOXD_OPENCODE_WEB_KEY.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url]
+                properties:
+                  url: { type: string }
+        "409": { $ref: "#/components/responses/Error" }
+        "503": { $ref: "#/components/responses/Error" }
+
   /v1/snapshots:
     get:
       operationId: listSnapshots

@@ -6,6 +6,19 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.0-nordineonline.1] — 2026-08-20
+
+* feat(console): embed the native **OpenCode web** UI per app — the Overview tab
+  now renders OpenCode's own session UI in an iframe on a dedicated
+  `opencode-<id>.preview.<domain>` host (per-sandbox auth token minted by the
+  control plane) instead of the old bespoke chat, by @nordineonline-sudo with Claude (Anthropic) (fork)
+* feat(console): make the Overview/Files/Git layouts and top bar responsive on
+  mobile by @nordineonline-sudo (fork)
+* feat(control-plane): reverse-proxy `opencode-<id>.preview.<domain>` to each
+  sandbox's internal `opencode web` — validates the per-sandbox password
+  (auth_token query or Basic), passes static assets through, and streams SSE/pty
+  — plus `GET /v1/sandboxes/{id}/opencode-url`, by @nordineonline-sudo (fork)
+
 ## [0.3.6] — 2026-08-01
 
 * fix(console): stop double-prefixing write paths (console saves went to a phantom dir) by @tastyeffectco in https://github.com/tastyeffectco/sandboxd/pull/99

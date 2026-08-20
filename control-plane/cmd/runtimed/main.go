@@ -31,6 +31,7 @@ const version = "0.1.0"
 type app struct {
 	web           *process   // the previewed process; nil for a worker-only app
 	workers       []*process // background processes, no preview
+	opencodeWeb   *process   // internal-only: OpenCode's own web UI (see opencodeweb.go). Never in workers — hidden from GET /status and the console's Processes tab.
 	previewPort   int        // web process's HTTP port
 	webHealthPath string     // path probed for web readiness
 	defaultWeb    bool       // web is the built-in default => run the Vite asset deep-probe
@@ -138,6 +139,12 @@ func main() {
 		a.workers = append(a.workers, wp)
 	}
 
+	// OpenCode Web embed (see opencodeweb.go): internal-only, no manifest entry.
+	// Runs regardless of the app's own web/worker config — the console reaches
+	// it directly by sandbox id, not through this app's preview port.
+	ensureXdgOpenStub("/home/sandbox", log)
+	a.opencodeWeb = newOpencodeWebProcess(appDir, runtimeDir, log)
+
 	// Finalize any task interrupted by a previous stop/crash before
 	// accepting new work — an interrupted task is failed, never resumed.
 	recoverInterruptedTasks(filepath.Join(runtimeDir, "tasks"), log)
@@ -152,9 +159,12 @@ func main() {
 	for _, w := range a.workers {
 		go w.supervise(ctx)
 	}
+	if a.opencodeWeb != nil {
+		go a.opencodeWeb.supervise(ctx)
+	}
 
 	log.Info("runtimed started", "version", version, "app_dir", appDir, "socket", socketPath,
-		"web", a.web != nil, "workers", len(a.workers))
+		"web", a.web != nil, "workers", len(a.workers), "opencode_web", a.opencodeWeb != nil)
 	if err := serve(ctx, socketPath, a); err != nil {
 		log.Error("control server", "err", err.Error())
 	}
@@ -166,6 +176,9 @@ func main() {
 	}
 	for _, w := range a.workers {
 		w.stop()
+	}
+	if a.opencodeWeb != nil {
+		a.opencodeWeb.stop()
 	}
 	log.Info("runtimed stopped")
 }

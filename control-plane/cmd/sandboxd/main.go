@@ -371,6 +371,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// OpenCode Web embed (see internal/api/opencodeweb.go): SANDBOXD_OPENCODE_WEB_KEY
+	// (base64 32 bytes) or an auto-generated 0600 keyfile under the data dir. Never
+	// fatal — a key load failure just disables the feature (503 on the embed route)
+	// rather than blocking startup, since it's additive to the console, not core.
+	opencodeWebKey, err := api.LoadOpencodeWebKey(os.Getenv("SANDBOXD_OPENCODE_WEB_KEY"), filepath.Join(dataDir, "opencode-web.key"))
+	if err != nil {
+		log.Warn("init opencode-web embed key — feature disabled", "err", err.Error())
+		opencodeWebKey = nil
+	}
+
 	// Phase 10B A0 — host-side agent auth store (read-only here). Best-effort
 	// root creation; never fatal.
 	agentAuth := agentauth.NewStore(dataDir)
@@ -506,6 +516,7 @@ func main() {
 		OpencodeZenPath:     envDefault("SANDBOXD_OPENCODE_ZEN_PATH", ""),
 		DefaultAgent:        defaultAgent,
 		AgentProxyURL:       agentProxyURL,
+		OpencodeWebKey:      opencodeWebKey,
 		Docker:              dockerClient,
 		Loopback:            loopMgr,
 		Log:                 log.With("component", "api"),
@@ -574,7 +585,7 @@ func main() {
 	// the browser preview path and stays unauthenticated; a private
 	// sandbox's stopped-wake is gated inside the wake handler itself.
 	apiMux := authMw.Wrap(server.Handler())
-	root := hostDispatch(wakeHandler, apiMux, log)
+	root := hostDispatch(wakeHandler, apiMux, http.HandlerFunc(server.ServeOpencodeWebHost), log)
 	root = logging.Middleware(log, root)
 
 	httpSrv := &http.Server{
@@ -832,14 +843,30 @@ func main() {
 // (when Host header matches s-<id>-<port>.preview.<domain>) or the
 // loopback API. Both share the same listener so the operator only
 // has to wire one entry into Traefik's file provider.
-func hostDispatch(w *wake.Handler, apiMux http.Handler, _ any) http.Handler {
+func hostDispatch(w *wake.Handler, apiMux http.Handler, opencodeWeb http.Handler, _ any) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if w != nil && w.HostMatchesPreview(r.Host) {
 			w.ServeCatchAll(rw, r)
 			return
 		}
+		// OpenCode web hosts (opencode-<id>.preview.<domain>) bypass the
+		// session-cookie middleware: the browser won't send the console cookie
+		// cross-origin, and the opencode handler authenticates itself via the
+		// per-sandbox ?auth_token= / Basic it validates. Mirror of the wake
+		// path above — same reason, same placement (before authMw).
+		if opencodeWeb != nil && hostIsOpencodeWeb(r.Host) {
+			opencodeWeb.ServeHTTP(rw, r)
+			return
+		}
 		apiMux.ServeHTTP(rw, r)
 	})
+}
+
+// hostIsOpencodeWeb is the cheap pre-filter used by hostDispatch; the actual
+// per-request parse + sandbox lookup happens in the opencode handler. Kept
+// dependency-free here so main.go doesn't import the api internals.
+func hostIsOpencodeWeb(host string) bool {
+	return strings.HasPrefix(host, "opencode-")
 }
 
 func envDefault(k, d string) string {

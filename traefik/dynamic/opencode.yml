@@ -1,0 +1,35 @@
+# OpenCode web router — embedded OpenCode UI per sandbox.
+#
+# sandboxd runs `opencode web` inside every sandbox and the console embeds it
+# in an iframe. OpenCode's own web client resolves its API base from the page
+# origin (location.origin) with hardcoded absolute paths, so it can't live under
+# a /v1 sub-path of the console — it needs its own host at the root:
+#   opencode-<id>.preview.<domain>
+# This file-provider router forwards every such host to sandboxd, whose
+# hostDispatch routes it to the OpenCode web proxy (internal/api/
+# v1_opencode_web.go). That handler authenticates the request (the per-sandbox
+# ?auth_token= OpenCode's client natively understands, or its Basic re-send)
+# and reverse-proxies to the sandbox's internal opencode web — which is why this
+# router targets sandboxd:9000, never the sandbox container itself.
+#
+# The HostRegexp matches the opencode shape for ANY domain so you don't have to
+# edit this file when you change PREVIEW_DOMAIN — sandboxd validates the exact
+# domain. It does not overlap the wake catch-all (^s-<id>-<port>.preview…), so
+# previews keep waking through sandbox-wake untouched. Like the previews, the
+# same-origin console embeds the app, so this router's service preserves the
+# browser Host header (passHostHeader) so the control plane can parse the id.
+
+http:
+  routers:
+    sandbox-opencode:
+      rule: "HostRegexp(`^opencode-[0-9A-Za-z]+\\.preview\\..+$`)"
+      entryPoints: [web]
+      service: sandbox-opencode
+      priority: 99
+
+  services:
+    sandbox-opencode:
+      loadBalancer:
+        passHostHeader: true
+        servers:
+          - url: "http://sandboxd:9000"
