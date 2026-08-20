@@ -1,4 +1,4 @@
-import { Fragment, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, RuntimeSuggestion } from './api'
 import { c, font, mono, Card, H, Btn, Pill, StatusPill, statusTone, Input, tab, useIsMobile } from './design/kit'
 import { DeployModal } from './DeployModal'
@@ -11,7 +11,7 @@ const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.C
 const SandboxTerminal = lazy(() => import('./Terminal').then((m) => ({ default: m.SandboxTerminal })))
 
 type Msg = { role: 'user' | 'agent'; text: string; taskId?: string; done?: boolean }
-const TABS = ['overview', 'brain', 'files', 'git', 'config', 'terminal', 'snapshots', 'activity'] as const
+const TABS = ['agent', 'overview', 'brain', 'readme', 'files', 'git', 'config', 'terminal', 'snapshots', 'activity'] as const
 type Tab = (typeof TABS)[number]
 
 // Per-app agent context (Layer 2). Platform/sandbox conventions come from the
@@ -57,12 +57,15 @@ export function AppView({
 }: { appId: string; initialTab?: string; onError: (m: string) => void; toast: (m: string) => void; goApps: () => void; goSettings: () => void; apps?: TApp[]; onOpenApp?: (id: string, tab?: string) => void }) {
   const [app, setApp] = useState<TApp | null>(null)
   const [sb, setSb] = useState<Sandbox | null>(null)
-  const [tabName, setTabName] = useState<Tab>((initialTab as Tab) || 'overview')
+  const [tabName, setTabName] = useState<Tab>((initialTab as Tab) || 'agent')
   const [busy, setBusy] = useState(false)
   const [menu, setMenu] = useState(false)
   const [applied, setApplied] = useState<{ preset: string } | null>(null) // auto-applied runtime banner (Undo)
   const [deployOpen, setDeployOpen] = useState(false)
+  const isMobile = useIsMobile()
   const autoRef = useRef<string>('') // guards one auto-apply attempt per sandbox
+  const tabContentRef = useRef<HTMLDivElement>(null)
+  const [agentHeightPx, setAgentHeightPx] = useState<number | null>(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -80,6 +83,22 @@ export function AppView({
     const t = setInterval(refresh, settled ? 5000 : 2000)
     return () => clearInterval(t)
   }, [refresh, settled])
+
+  // The agent is the working surface: size it to exactly the viewport space
+  // below the app chrome (header/tabs), re-measured on resize and whenever the
+  // tab (or the "runtime applied" banner) changes the chrome height.
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = tabContentRef.current
+      if (!el || tabName !== 'agent') return
+      setAgentHeightPx(Math.max(320, window.innerHeight - el.getBoundingClientRect().top))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (tabContentRef.current) ro.observe(tabContentRef.current)
+    window.addEventListener('resize', measure)
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure) }
+  }, [tabName, !!app]) // app-load flips this, so the ref exists by the time we measure
 
   // Detect → apply the recommended sandbox.yaml + write an app-context AGENTS.md
   // for the agent, then restart. Shared by the auto-apply-on-import path and the
@@ -136,10 +155,10 @@ export function AppView({
     catch (e) { onError((e as Error).message) }
   }
 
-  const tabBadge: Record<Tab, string> = { overview: '', brain: '', files: '', git: '', config: '', terminal: '', snapshots: '', activity: '' }
+  const tabBadge: Record<Tab, string> = { agent: '', overview: '', brain: '', readme: '', files: '', git: '', config: '', terminal: '', snapshots: '', activity: '' }
 
   return (
-    <div className="dc-page" style={{ maxWidth: 1320, margin: '0 auto', padding: '28px 40px 80px' }}>
+    <div className="dc-page" style={{ maxWidth: 1320, margin: '0 auto', padding: tabName === 'agent' ? (isMobile ? '28px 14px 0' : '28px 40px 0') : '28px 40px 80px' }}>
       <div style={{ fontSize: 12, color: c.muted2, marginBottom: 10 }}>
         <a onClick={goApps} className="dc-hoverink" style={{ color: c.muted, cursor: 'pointer', textDecoration: 'none' }}>Apps</a>
         <span style={{ margin: '0 4px' }}>/</span><span style={{ color: c.fg }}>{app.name}</span>
@@ -196,8 +215,11 @@ export function AppView({
         ))}
       </div>
 
-      {tabName === 'overview' && <Overview app={app} sb={sb} previewURL={previewURL} onError={onError} toast={toast} refresh={refresh} onApplyRuntime={() => sb && applyRuntime(sb.id, { auto: false })} canApply={status === 'running'} />}
+      <div ref={tabContentRef}>
+      {tabName === 'agent' && <AgentTab sb={sb} onError={onError} toast={toast} refresh={refresh} heightPx={agentHeightPx} />}
+      {tabName === 'overview' && <Overview app={app} sb={sb} previewURL={previewURL} onError={onError} onApplyRuntime={() => sb && applyRuntime(sb.id, { auto: false })} canApply={status === 'running'} />}
       {tabName === 'brain' && <BrainTab appName={app.name} sb={sb} onError={onError} toast={toast} apps={apps} onOpenApp={onOpenApp} />}
+      {tabName === 'readme' && <ReadmeTab appName={app.name} sb={sb} onError={onError} toast={toast} />}
       {tabName === 'files' && <FilesTab appId={appId} sb={sb} onError={onError} toast={toast} />}
       {tabName === 'git' && <GitTab appId={appId} onError={onError} toast={toast} goSettings={goSettings} />}
       {tabName === 'config' && <ConfigTab appId={appId} onError={onError} />}
@@ -208,6 +230,7 @@ export function AppView({
       )}
       {tabName === 'snapshots' && <SnapshotsTab appId={appId} appName={app.name} onError={onError} toast={toast} refresh={refresh} sb={sb} />}
       {tabName === 'activity' && <ActivityTab appId={appId} onError={onError} />}
+      </div>
       {deployOpen && <DeployModal appName={app.name} close={() => setDeployOpen(false)} />}
     </div>
   )
@@ -217,8 +240,8 @@ function MenuItem({ children, onClick, danger }: { children: React.ReactNode; on
   return <div onClick={onClick} style={{ padding: '7px 11px', borderRadius: 6, fontSize: 12.5, cursor: 'pointer', color: danger ? c.bad : c.fg }} onMouseEnter={(e) => (e.currentTarget.style.background = danger ? 'rgba(220,38,38,.06)' : c.panel2)} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>{children}</div>
 }
 
-// ---------- OVERVIEW (preview + processes + runtime + AGENT CHAT) ----------
-function Overview({ app, sb, previewURL, onError, toast, refresh, onApplyRuntime, canApply }: { app: TApp; sb: Sandbox | null; previewURL?: string; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void; onApplyRuntime: () => void; canApply: boolean }) {
+// ---------- OVERVIEW (preview + processes + runtime, full width) ----------
+function Overview({ app, sb, previewURL, onError, onApplyRuntime, canApply }: { app: TApp; sb: Sandbox | null; previewURL?: string; onError: (m: string) => void; onApplyRuntime: () => void; canApply: boolean }) {
   const running = sb?.status === 'running'
   const procs: Process[] = sb?.processes || []
   // The dev server isn't up the instant the sandbox is "running" — the control
@@ -251,10 +274,8 @@ function Overview({ app, sb, previewURL, onError, toast, refresh, onApplyRuntime
       .finally(() => clearTimeout(timer))
     return () => { cancelled = true; clearTimeout(timer); ctrl.abort() }
   }, [ready, previewURL, nonce])
-  const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'minmax(0,1fr) 400px', gap: 16, alignItems: 'start' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
         {/* preview */}
         <Card style={{ overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel2 }}>
@@ -303,9 +324,6 @@ function Overview({ app, sb, previewURL, onError, toast, refresh, onApplyRuntime
         <ProcessesCard sb={sb} running={running} procs={procs} onError={onError} />
 
         <RuntimeCard appId={app.id} onApplyRuntime={onApplyRuntime} canApply={canApply} />
-      </div>
-
-      <AgentChat sb={sb} onError={onError} toast={toast} refresh={refresh} />
     </div>
   )
 }
@@ -511,6 +529,94 @@ function BrainTab({ appName, sb, onError, toast, apps, onOpenApp }: { appName: s
   )
 }
 
+// ---------- README (the project's README.md — view/edit, committed to git) ----------
+
+export function readmeTemplate(appName: string): string {
+  return [
+    `# ${appName}`,
+    '',
+    '<!-- What the app does, who it is for, where it runs. -->',
+    '',
+    '## Getting started',
+    '<!-- How to run it locally / in a sandbox. -->',
+    '',
+    '## Features',
+    '<!-- One bullet per capability. -->',
+    '',
+    '## Usage',
+    '<!-- Example commands or screenshots. -->',
+    '',
+  ].join('\n')
+}
+
+function ReadmeTab({ appName, sb, onError, toast }: { appName: string; sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void }) {
+  // The app's root README.md — the public project doc. Unlike the brain it is a
+  // normal workspace file, committed to git like any other source.
+  const [text, setText] = useState<string | null>(null) // null = still loading
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
+
+  const load = useCallback(() => {
+    if (!sb) return
+    api.getWorkspaceFile(sb.id, 'README.md')
+      .then((body) => { setText(body ?? ''); setDirty(false); setEditing(false) })
+      .catch((e) => onError((e as Error).message))
+  }, [sb, onError])
+  useEffect(() => { load() }, [load])
+
+  const save = async () => {
+    if (!sb || text === null) return
+    setBusy(true)
+    try {
+      await api.putWorkspaceFile(sb.id, 'README.md', text)
+      setDirty(false)
+      toast('README.md saved')
+    } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
+  }
+
+  if (!sb) return <p style={{ color: c.muted2 }}>No sandbox yet — create one to open the project README.</p>
+  if (text === null) return <p style={{ color: c.muted2 }}>Loading…</p>
+
+  if (text.trim() === '') {
+    return (
+      <Card style={{ padding: '26px 22px', textAlign: 'center' }} data-testid="readme-empty">
+        <div style={{ fontFamily: font.display, fontWeight: 600, fontSize: 15, marginBottom: 6 }}>No README.md yet</div>
+        <div style={{ color: c.muted, fontSize: 13, lineHeight: 1.55, maxWidth: 520, margin: '0 auto 16px' }}>
+          <span style={{ ...mono, fontSize: 12 }}>README.md</span> is this project's public document — what it does and how to use it.
+          It lives in the workspace and is committed to git like any other file.
+        </div>
+        <Btn variant="primary" disabled={busy} onClick={() => { setText(readmeTemplate(appName)); setEditing(true); setDirty(true) }} data-testid="readme-create">Create README.md</Btn>
+      </Card>
+    )
+  }
+
+  return (
+    <div data-testid="readme-tab">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+        <span data-testid="readme-doc" style={{ ...mono, fontSize: 12, padding: '5px 11px', borderRadius: 7, border: `1px solid ${c.border}`, background: c.panel2, color: c.fg }}>README.md</span>
+        <div style={{ flex: 1 }} />
+        {editing && dirty && <Btn variant="primary" disabled={busy} onClick={save} data-testid="readme-save">{busy ? 'Saving…' : 'Save'}</Btn>}
+        <Btn onClick={() => setEditing((e) => !e)} data-testid="readme-edit-toggle">{editing ? 'View' : 'Edit'}</Btn>
+      </div>
+      <div style={{ ...mono, fontSize: 11, color: c.muted2, marginBottom: 8 }}>
+        README.md ({text.split('\n').length} lines) — committed to git
+      </div>
+      {editing ? (
+        <textarea
+          value={text}
+          onChange={(e) => { setText(e.target.value); setDirty(true) }}
+          spellCheck={false}
+          data-testid="readme-editor"
+          style={{ width: '100%', height: 520, resize: 'vertical', background: c.panel, color: c.fg, border: `1px solid ${c.border}`, borderRadius: 9, padding: '14px 16px', ...mono, fontSize: 12.5, lineHeight: 1.55 }}
+        />
+      ) : (
+        <BrainView md={text} linkFor={() => null} />
+      )}
+    </div>
+  )
+}
+
 function ProcessesCard({ sb, running, procs, onError }: { sb: Sandbox | null; running: boolean; procs: Process[]; onError: (m: string) => void }) {
   const [logsFor, setLogsFor] = useState<string | null>(null)
   const [lines, setLines] = useState<string[]>([])
@@ -624,9 +730,13 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
 // OpenCode's web client resolves its API base from location.origin with
 // hardcoded absolute paths, so it can't live under a /v1 sub-path. The token is
 // per-sandbox and only issued to authenticated console sessions.
-function AgentChat({ sb }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void }) {
+// ---------- AGENT (the OpenCode web chat, full page width) ----------
+function AgentTab({ sb, heightPx }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void; heightPx?: number | null }) {
   const isMobile = useIsMobile()
-  const height = isMobile ? '70vh' : 640
+  // The whole remaining viewport height — the agent is the working surface, not
+  // a side panel. When a pixel measure is available (AppView measures the space
+  // below the header/tabs) it wins; the calc() fallback covers first paint.
+  const height = heightPx ? `${heightPx}px` : (isMobile ? 'calc(100vh - 200px)' : 'calc(100vh - 190px)')
   const [ocURL, setOcURL] = useState<string | null>(null)
   const [ocErr, setOcErr] = useState('')
 
@@ -643,14 +753,14 @@ function AgentChat({ sb }: { sb: Sandbox | null; onError: (m: string) => void; t
     return () => { alive = false }
   }, [sb?.id, sb?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const panel: React.CSSProperties = { height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.muted2, fontSize: 13, textAlign: 'center', padding: 20 }
+  const panel: React.CSSProperties = { height, minHeight: 440, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.muted2, fontSize: 13, textAlign: 'center', padding: 20 }
   if (!sb) return <Card style={panel}>Create a sandbox to start building with the agent.</Card>
   if (sb.status !== 'running') return <Card style={panel}>Start the sandbox to open the agent.</Card>
   if (ocErr) return <Card style={panel}>Couldn't open the agent — {ocErr}</Card>
   if (!ocURL) return <Card style={panel}>Starting the agent…</Card>
 
   return (
-    <Card style={{ height, overflow: 'hidden', padding: 0 }} data-testid="opencode-web-panel">
+    <Card style={{ height, minHeight: 440, overflow: 'hidden', padding: 0 }} data-testid="opencode-web-panel">
       <iframe
         key={ocURL}
         src={ocURL}

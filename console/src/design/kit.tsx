@@ -35,9 +35,12 @@ export const font = {
 }
 export const mono: CSSProperties = { fontFamily: font.mono }
 
-export function Card({ children, style, pad, onClick }: { children: ReactNode; style?: CSSProperties; pad?: number | boolean; onClick?: (e: React.MouseEvent) => void }) {
+// A11y/testing hooks forwarded by Card and Btn (data-testid, aria-label, id).
+export type HtmlA11y = { 'data-testid'?: string; 'aria-label'?: string; id?: string }
+
+export function Card({ children, style, pad, onClick, ...rest }: { children: ReactNode; style?: CSSProperties; pad?: number | boolean; onClick?: (e: React.MouseEvent) => void } & HtmlA11y) {
   return (
-    <div onClick={onClick} style={{ background: c.panel, border: `1px solid ${c.border}`, borderRadius: 10, ...(pad ? { padding: pad === true ? 16 : pad } : {}), ...style }}>
+    <div onClick={onClick} {...rest} style={{ background: c.panel, border: `1px solid ${c.border}`, borderRadius: 10, ...(pad ? { padding: pad === true ? 16 : pad } : {}), ...style }}>
       {children}
     </div>
   )
@@ -49,8 +52,8 @@ export function H({ children, size = 15, style }: { children: ReactNode; size?: 
 
 type BtnVariant = 'primary' | 'outline' | 'ghost' | 'danger'
 export function Btn({
-  children, onClick, variant = 'outline', disabled, title, style, sm,
-}: { children: ReactNode; onClick?: () => void; variant?: BtnVariant; disabled?: boolean; title?: string; style?: CSSProperties; sm?: boolean }) {
+  children, onClick, variant = 'outline', disabled, title, style, sm, ...rest
+}: { children: ReactNode; onClick?: () => void; variant?: BtnVariant; disabled?: boolean; title?: string; style?: CSSProperties; sm?: boolean } & HtmlA11y) {
   const base: CSSProperties = {
     borderRadius: 7, fontSize: sm ? 12 : 12.5, fontFamily: font.sans, fontWeight: 500,
     padding: sm ? '5px 12px' : '7px 14px', cursor: disabled ? 'not-allowed' : 'pointer',
@@ -63,7 +66,7 @@ export function Btn({
     danger: { background: 'transparent', border: '1px solid rgba(220,38,38,.3)', color: c.bad },
   }
   return (
-    <button title={title} disabled={disabled} onClick={onClick} className="dc-hoverborder" style={{ ...base, ...v[variant], ...style }}>
+    <button title={title} disabled={disabled} onClick={onClick} {...rest} className="dc-hoverborder" style={{ ...base, ...v[variant], ...style }}>
       {children}
     </button>
   )
