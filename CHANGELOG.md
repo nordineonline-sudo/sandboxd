@@ -6,6 +6,19 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.1] — 2026-08-20
+
+* feat(console): reorganize the app tabs — a dedicated **agent** tab (first,
+  default) now hosts the embedded OpenCode web UI **full page width** and fills
+  the exact remaining viewport height, replacing the chat panel on the Overview
+  tab, by @nordineonline-sudo (fork)
+* feat(console): new **README** tab (brain-style view/edit with a
+  "Create README.md" empty state) for the app's root README.md — a normal
+  workspace file committed to git, unlike the git-excluded brain, by @nordineonline-sudo (fork)
+* feat(console): agent tab is full-bleed on mobile too, by @nordineonline-sudo (fork)
+* chore(console): `Card`/`Btn` forward `data-testid` so E2E selectors are
+  reliable, by @nordineonline-sudo (fork)
+
 ## [0.4.0-nordineonline.2] — 2026-08-20
 
 * release(prod): production release of the fork — pinned image tags

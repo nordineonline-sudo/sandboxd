@@ -11,7 +11,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.0--nordineonline.2-00ADD8"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.1-00ADD8"></a>
 </p>
 
 ---
@@ -57,9 +57,10 @@ The console isn't only for coders. Open it and, in **one click or one prompt**, 
 - **🧩 Start from a starter** — a React/Vite, Next.js, or FastAPI scaffold that boots to a live preview; then just *chat* to shape it.
 - **📥 Bring your own repo** — import any **public** Git repo (no credential needed) and let a coding agent work on it.
 - **✨ Build from scratch** — describe an app and watch the agent build it in the live preview, then commit &amp; push.
-- **🤖 Chat with the real OpenCode** — the Overview tab embeds OpenCode's native
-  web UI (per-app sandbox, full session/terminal/file editing), replacing the
-  old bespoke chat. See [Changes in this fork](#changes-in-this-fork) for how this
+- **🤖 Chat with the real OpenCode** — a dedicated **agent** tab (the app page's
+  first, default tab) embeds OpenCode's native web UI **full page width**
+  (per-app sandbox, full session/terminal/file editing), replacing the old
+  bespoke chat. See [Changes in this fork](#changes-in-this-fork) for how this
   fork wires OpenCode's web UI in and makes your conversations follow you across
   devices.
 
@@ -103,9 +104,12 @@ also recorded in the [`CHANGELOG`](CHANGELOG.md).
 ### 1. Embedded OpenCode web console (per-app)
 *Commits `aeab961`, plus the control-plane proxy pieces.*
 
-The console's **Overview tab no longer uses the old bespoke chat** — it embeds
-**OpenCode's native web UI** in an iframe, one per app:
+The app page now has a dedicated **agent** tab (its first, default tab) that
+renders **OpenCode's native web UI** in a full-page-width iframe — the old
+bespoke chat is gone:
 
+- The agent tab replaces the chat panel that used to sit on the **Overview**
+  tab (which is now preview + processes + runtime, full width).
 - Each sandbox gets a dedicated **`opencode-<id>.preview.<domain>`** host, served
   through the same Traefik edge as the app previews.
 - The control plane reverse-proxies that host into the sandbox's internal
@@ -151,11 +155,25 @@ had real sessions. This fork fixes that end-to-end:
   have no Shift key, so the old behavior made multi-line messages impossible.
   Desktop behaviour is unchanged (Enter sends, Shift+Enter inserts a newline).
 
+### 5. Dedicated agent + README tabs
+*Release `0.4.1-nordineonline.1`.*
+
+- **Agent is its own tab, first and default.** The embedded OpenCode UI moved out
+  of the Overview into a dedicated **agent** tab that is **full page width** and
+  sized to the exact viewport height left below the header (dynamically
+  measured, so no page scroll). It is full-bleed on mobile too.
+- **New README tab.** A brain-style **view/edit** tab for the app's root
+  `README.md` — a **normal workspace file, committed to git** like any other
+  source (the brain's `BRAIN.md` is git-excluded by design). Empty projects get a
+  **"Create README.md"** button that seeds a template.
+- **E2E-friendly markup.** `Card`/`Btn` now forward `data-testid`, so browser
+  tests can target the agent and README tabs reliably.
+
 ### Where the fork differs operationally
 
 - **Versioning** is pinned for the deployment: images are tagged
   `sandboxd-base` / `sandboxd-control-plane` / `sandboxd-console` at
-  `0.4.0-nordineonline.<n>` (no floating `latest`). Bump the tag in
+  `0.4.1-nordineonline.<n>` (no floating `latest`). Bump the tag in
   [`docker-compose.yml`](docker-compose.yml), `console/package.json` and
   [`image/README.md`](image/README.md) together when you release.
 - The install/deploy scripts below install **this** repo, not upstream.
@@ -235,7 +253,7 @@ script or `docker run` is simpler.
 ## Changelog
 
 All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
-`0.4.0-nordineonline.<n>`.
+`0.4.1-nordineonline.<n>`.
 
 ## License
 
