@@ -14,6 +14,10 @@ patch** — each lands the meaningful changes merged since the last one — and 
 * docs: rewrite the top-level README for this fork (repo links, install from
   this git, changelog) and document every evolution vs upstream — embedded
   OpenCode web console, cross-device sessions, mobile fixes — by @nordineonline-sudo (fork)
+* fix(control-plane): hand `RUNTIMED_OPENCODE_WEB_PASSWORD` to sandboxes
+  recreated on wake/self-heal (the rebuild used sandboxspec.Build, which never
+  received the key) — without it a recreated container silently ran without the
+  embedded `opencode web` and the console's OpenCode tab 502'd, by @nordineonline-sudo (fork)
 
 ## [0.4.0-nordineonline.1] — 2026-08-20
 

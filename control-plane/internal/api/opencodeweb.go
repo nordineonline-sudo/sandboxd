@@ -81,11 +81,17 @@ func LoadOpencodeWebKey(envKey, keyfilePath string) ([]byte, error) {
 	return key, nil
 }
 
-// opencodeWebPassword derives sandbox id's `opencode web` HTTP Basic password:
+// OpencodeWebPassword derives sandbox id's `opencode web` HTTP Basic password:
 // HMAC-SHA256(masterKey, sandboxID), hex, truncated to 32 chars. Deterministic
 // so nothing new needs storing or migrating — the control plane recomputes it
 // on every proxied request, and the exact same value is handed to runtimed as
-// RUNTIMED_OPENCODE_WEB_PASSWORD at `docker run` time.
+// RUNTIMED_OPENCODE_WEB_PASSWORD at `docker run` time. Exported so the
+// self-healing recreate path (cmd/sandboxd) can produce the identical
+// container spec the create path does.
+func OpencodeWebPassword(masterKey []byte, sandboxID string) string {
+	return opencodeWebPassword(masterKey, sandboxID)
+}
+
 func opencodeWebPassword(masterKey []byte, sandboxID string) string {
 	mac := hmac.New(sha256.New, masterKey)
 	mac.Write([]byte(sandboxID))

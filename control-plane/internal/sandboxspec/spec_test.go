@@ -105,6 +105,21 @@ func TestBuildForwardsRuntimedEnv(t *testing.T) {
 	}
 }
 
+func TestBuildForwardsOpencodeWebPassword(t *testing.T) {
+	s := Build(row(), Env{Image: "img", OpencodeWebPassword: "abc123"})
+	joined := strings.Join(s.Env, "\n")
+	if !strings.Contains(joined, "RUNTIMED_OPENCODE_WEB_PASSWORD=abc123") {
+		t.Errorf("env missing RUNTIMED_OPENCODE_WEB_PASSWORD\ngot: %s", joined)
+	}
+}
+
+func TestBuildOmitsOpencodeWebPasswordWhenDisabled(t *testing.T) {
+	s := Build(row(), Env{Image: "img"})
+	if strings.Contains(strings.Join(s.Env, "\n"), "RUNTIMED_OPENCODE_WEB_PASSWORD") {
+		t.Errorf("opencode web must be off when no password is set, got %v", s.Env)
+	}
+}
+
 func TestNeedsRecreate(t *testing.T) {
 	cases := []struct {
 		name, container, current string

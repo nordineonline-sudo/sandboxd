@@ -496,6 +496,9 @@ func main() {
 			OpencodeModel:     envDefault("SANDBOXD_OPENCODE_MODEL", ""),
 			OpencodeZenPath:   envDefault("SANDBOXD_OPENCODE_ZEN_PATH", ""),
 			RuntimePreset:     runtimePresetForSandbox(ctx, st, sb),
+			// Same password the create path hands runtimed (handlers.go): without
+			// it a recreated container would run without the embedded opencode web.
+			OpencodeWebPassword: opencodeWebPasswordOrEmpty(opencodeWebKey, sb.ID),
 		})
 		// Remove any existing container first so the name is free; ignore a
 		// not-found (the common case) and let Run surface a real failure.
@@ -874,6 +877,16 @@ func envDefault(k, d string) string {
 		return v
 	}
 	return d
+}
+
+// opencodeWebPasswordOrEmpty returns the per-sandbox `opencode web` password,
+// or "" when the feature is disabled (no master key). Mirrors the create path's
+// guard so the recreate path produces an identical container.
+func opencodeWebPasswordOrEmpty(masterKey []byte, sandboxID string) string {
+	if len(masterKey) == 0 {
+		return ""
+	}
+	return api.OpencodeWebPassword(masterKey, sandboxID)
 }
 
 // envSplit returns the env var split by `sep`, trimming empty entries.

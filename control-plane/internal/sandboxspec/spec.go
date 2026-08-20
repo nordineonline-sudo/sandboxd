@@ -33,6 +33,7 @@ type Env struct {
 	OpencodeZenPath   string
 	RuntimePreset     string   // from the owning app, when known
 	AgentAuthMounts   []string // only when the auth proxy is disabled
+	OpencodeWebPassword string // empty = opencode web embed disabled
 }
 
 // Build returns the RunSpec for `sb`. It reproduces the create path's flags:
@@ -53,6 +54,9 @@ func Build(sb *store.Sandbox, e Env) docker.RunSpec {
 	}
 	if e.OpencodeZenPath != "" {
 		env = append(env, "SANDBOXD_OPENCODE_ZEN_PATH="+e.OpencodeZenPath)
+	}
+	if e.OpencodeWebPassword != "" {
+		env = append(env, "RUNTIMED_OPENCODE_WEB_PASSWORD="+e.OpencodeWebPassword)
 	}
 
 	volumes := append([]string{sb.WorkspaceMnt + ":/home/sandbox"}, e.AgentAuthMounts...)
