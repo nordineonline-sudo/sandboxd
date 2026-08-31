@@ -381,6 +381,39 @@ export const api = {
     api.putWorkspaceFile(sandboxId, appRelPath, content),
   // Download the whole workspace as a zip (href for an <a download>).
   exportUrl: (sandboxId: string) => `/v1/sandboxes/${sandboxId}/export`,
+  // --- file manager (host-side endpoints; work while the sandbox is stopped) ---
+  // Download ONE file as an attachment (binary-safe, no size cap).
+  fileDownloadUrl: (sandboxId: string, appRelPath: string) =>
+    `/v1/sandboxes/${sandboxId}/files/download?path=${encodeURIComponent(appRelPath)}`,
+  // Download a directory ("" = whole app workspace) as a zip attachment.
+  fileArchiveUrl: (sandboxId: string, appRelDir: string) =>
+    `/v1/sandboxes/${sandboxId}/files/archive?path=${encodeURIComponent(appRelDir)}`,
+  // mkdir -p relative to the app dir.
+  mkdir: (sandboxId: string, appRelDir: string) =>
+    req<{ path: string }>('POST', `/v1/sandboxes/${sandboxId}/files/mkdir?path=${encodeURIComponent(appRelDir)}`),
+  // Delete a file or directory (recursive). Same app-relative root as reads.
+  deleteFile: (sandboxId: string, appRelPath: string) =>
+    req<{ path: string }>('DELETE', `/v1/sandboxes/${sandboxId}/files?path=${encodeURIComponent(appRelPath)}`),
+  // Rename a file/directory WITHIN its parent directory.
+  renameFile: (sandboxId: string, appRelPath: string, name: string) =>
+    req<{ path: string }>('PATCH', `/v1/sandboxes/${sandboxId}/files?path=${encodeURIComponent(appRelPath)}`, { name }),
+  // Upload one or more files into a directory. Each entry's name may be a
+  // relative path (e.g. "assets/logo.png") so dropped folders land intact.
+  uploadFiles: async (sandboxId: string, dir: string, files: { name: string; file: File }[]): Promise<{ uploaded: number; warning?: string }> => {
+    const fd = new FormData()
+    for (const f of files) fd.append('files', f.file, f.name)
+    const res = await fetch(`/v1/sandboxes/${sandboxId}/files/upload?path=${encodeURIComponent(dir)}`, { method: 'POST', body: fd })
+    if (res.status === 401 && onUnauthorized) onUnauthorized()
+    if (!res.ok) {
+      let message = `${res.status} ${res.statusText}`
+      try {
+        const e = await res.json()
+        if (e?.error?.message) message = e.error.message
+      } catch { /* non-JSON */ }
+      throw new Error(message)
+    }
+    return res.json()
+  },
   getWorkspaceFile: async (sandboxId: string, appRelPath: string): Promise<string | null> => {
     const res = await fetch(`/v1/sandboxes/${sandboxId}/files/content?path=${encodeURIComponent(appRelPath)}`)
     if (res.status === 404) return null

@@ -1260,23 +1260,19 @@ paths:
       tags: [sandboxes]
       summary: Write a workspace file (atomic)
       description: >
-        Writes one file into the sandbox workspace. The `path` query parameter is
-        RELATIVE TO THE WORKSPACE MOUNT ROOT (`/home/sandbox` inside the container),
-        NOT the app directory. The app source lives under `workspace/app`, so the
-        app's runtime manifest must be written as
-        `path=workspace/app/sandbox.yaml`. A bare `path=sandbox.yaml` is accepted
-        but writes to the mount root (`/home/sandbox/sandbox.yaml`), where runtimed
-        does NOT read it for app runtime. Reserved subtrees (`.runtimed/`,
-        `lost+found/`) are refused. The request body is the RAW file content
-        (opaque bytes), not JSON.
+        Writes one file into the sandbox workspace, relative to the APP dir
+        (`workspace/app`), matching GET /files. Parent directories are created.
+        The request body is the RAW file content (opaque bytes), not JSON.
+        Reserved subtrees (`.runtimed/`, `lost+found/`) are refused and a
+        symlinked leaf is never overwritten. Atomic: tmp file + rename.
       parameters:
         - in: query
           name: path
           required: true
           schema: { type: string }
           description: >
-            File path relative to the workspace mount root (e.g.
-            `workspace/app/sandbox.yaml`). Absolute paths and `..` are rejected.
+            File path relative to the app dir (e.g. `src/main.py`). Absolute
+            paths and `..` are rejected.
       requestBody:
         required: true
         description: Raw file content (opaque bytes) — not JSON.
@@ -1287,6 +1283,55 @@ paths:
         "200": { description: Written }
         "400": { description: Invalid path (absolute, traversal, or reserved subtree) }
         "413": { description: File exceeds the size limit }
+    delete:
+      operationId: deleteSandboxFile
+      tags: [sandboxes]
+      summary: Delete a file or directory
+      description: >
+        Deletes the file (or directory, recursively) at `path`, relative to the
+        app dir. The workspace root itself cannot be deleted; paths that
+        traverse a symlink are refused (a symlinked leaf is unlinked, never its
+        target).
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+          description: File or directory path relative to the app dir.
+      responses:
+        "200": { description: Deleted }
+        "400": { description: Workspace root or symlink traversal }
+        "404": { description: No such file }
+    patch:
+      operationId: renameSandboxFile
+      tags: [sandboxes]
+      summary: Rename a file or directory (in place)
+      description: >
+        Renames the file or directory at `path` to `name`, within its parent
+        directory (no move across folders). Fails if the target name already
+        exists. Symlinked paths are refused.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+          description: Existing file or directory path relative to the app dir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: New base name — no slashes, no `.`/`..`.
+      responses:
+        "200": { description: Renamed }
+        "400": { description: Invalid name or path }
+        "404": { description: No such file }
+        "409": { description: Target name already exists }
 
   /v1/sandboxes/{id}/files/content:
     parameters: [ { $ref: "#/components/parameters/Id" } ]
@@ -1307,6 +1352,104 @@ paths:
             text/plain:
               schema: { type: string }
         "404": { description: No such file }
+
+  /v1/sandboxes/{id}/files/download:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    get:
+      operationId: downloadSandboxFile
+      tags: [sandboxes]
+      summary: Download a workspace file
+      description: >
+        Streams a single file as an attachment (Content-Disposition). Unlike
+        /files/content there is no size cap and the bytes are exactly what is
+        on disk (binary-safe). Symlinks that escape the workspace are refused.
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+          description: File path relative to the app dir.
+      responses:
+        "200":
+          description: The file, streamed.
+        "400": { description: Path is a directory (use /files/archive) }
+        "404": { description: No such file }
+
+  /v1/sandboxes/{id}/files/archive:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    get:
+      operationId: archiveSandboxDirectory
+      tags: [sandboxes]
+      summary: Download a workspace directory as a zip
+      description: >
+        Streams the requested directory (the whole app workspace when `path` is
+        omitted) as a zip attachment. Symlinks, `node_modules`, `.git`, `dist`
+        and `.vite` are never included; empty directories are preserved.
+      parameters:
+        - in: query
+          name: path
+          schema: { type: string }
+          description: Directory path relative to the app dir (default root).
+      responses:
+        "200":
+          description: Zip archive of the directory.
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "400": { description: Path is a file (use /files/download) }
+        "404": { description: No such directory }
+
+  /v1/sandboxes/{id}/files/upload:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    post:
+      operationId: uploadSandboxFiles
+      tags: [sandboxes]
+      summary: Upload one or more files (multipart)
+      description: >
+        Multipart upload of one or more files into the target directory. Each
+        part's filename may be a relative path (e.g. `assets/logo.png`) so
+        dropped folders can be uploaded in one request. Total request size is
+        capped (25 MiB); traversal and symlink escapes are refused; files are
+        written atomically and never overwrite a symlink.
+      parameters:
+        - in: query
+          name: path
+          schema: { type: string }
+          description: Target directory relative to the app dir (default root). Must exist.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+                  description: One or more file parts; the part filename may contain a relative path.
+      responses:
+        "200":
+          description: Files written (a `warning` field reports per-part rejections).
+        "400": { description: No files uploaded / invalid target }
+        "404": { description: Target directory does not exist }
+        "413": { description: Upload exceeds the size limit }
+
+  /v1/sandboxes/{id}/files/mkdir:
+    parameters: [ { $ref: "#/components/parameters/Id" } ]
+    post:
+      operationId: createSandboxDirectory
+      tags: [sandboxes]
+      summary: Create a directory (mkdir -p)
+      parameters:
+        - in: query
+          name: path
+          required: true
+          schema: { type: string }
+          description: Directory path relative to the app dir; parents are created.
+      responses:
+        "200": { description: Created }
+        "400": { description: Invalid path }
+        "409": { description: A file or directory with that name already exists }
 
   /v1/sandboxes/{id}/processes/{name}/logs:
     parameters:

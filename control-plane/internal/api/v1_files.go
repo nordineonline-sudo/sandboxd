@@ -180,8 +180,38 @@ func (s *Server) v1FileContent(w http.ResponseWriter, r *http.Request) {
 		writeV1Err(w, http.StatusInternalServerError, "internal", err.Error())
 		return
 	}
+	// Text stays text/plain (the console editor treats everything as
+	// UTF-8 source). Images get their real media type so the console can
+	// preview them with a plain <img>; the sandboxed CSP keeps a
+	// directly-navigated SVG (which CAN carry scripts) inert.
+	if ctype := imageContentType(full); ctype != "" {
+		w.Header().Set("Content-Type", ctype)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Security-Policy", "sandbox")
+		w.Write(data)
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = w.Write(data)
+}
+
+// imageContentType maps the image extensions the console previews to
+// their media type; "" for everything else.
+func imageContentType(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".svg":
+		return "image/svg+xml"
+	default:
+		return ""
+	}
 }
 
 // --- GET /v1/sandboxes/{id}/export ----------------------------------

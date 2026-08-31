@@ -773,8 +773,46 @@ function AgentTab({ sb, heightPx }: { sb: Sandbox | null; onError: (m: string) =
   )
 }
 
-// ---------- FILES ----------
+// ---------- FILES (workspace file manager) ----------
 type TreeNode = { name: string; path: string; type: 'file' | 'dir'; size?: number; children: TreeNode[] }
+
+// Image extensions the console previews inline (server serves these with
+// their real media type + a sandboxed CSP).
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg']
+const isImagePath = (p: string) => IMAGE_EXTS.some((e) => p.toLowerCase().endsWith(e))
+
+// Walk a DataTransfer drop into a flat file list with relative paths, so
+// dropping a FOLDER uploads its whole tree (browser File inputs can't).
+async function collectDroppedFiles(dt: DataTransfer): Promise<{ name: string; file: File }[]> {
+  const items = dt.items ? Array.from(dt.items) : []
+  const entries = items
+    .map((it) => (typeof (it as any).webkitGetAsEntry === 'function' ? (it as any).webkitGetAsEntry() : null))
+    .filter(Boolean)
+  if (entries.length === 0) {
+    return Array.from(dt.files).map((f) => ({ name: f.name, file: f }))
+  }
+  const readAll = (reader: any): Promise<any[]> => new Promise((resolve) => {
+    const acc: any[] = []
+    const step = () => reader.readEntries((ents: any[]) => {
+      if (!ents.length) { resolve(acc); return }
+      acc.push(...ents); step()
+    }, () => resolve(acc))
+    step()
+  })
+  const out: { name: string; file: File }[] = []
+  const walk = async (entry: any, prefix: string): Promise<void> => {
+    if (entry.isFile) {
+      const file: File = await new Promise((res, rej) => entry.file(res, rej))
+      out.push({ name: prefix + entry.name, file })
+    } else if (entry.isDirectory) {
+      const kids = await readAll(entry.createReader())
+      for (const k of kids) await walk(k, `${prefix}${entry.name}/`)
+    }
+  }
+  for (const e of entries) await walk(e, '')
+  if (out.length === 0) return Array.from(dt.files).map((f) => ({ name: f.name, file: f }))
+  return out
+}
 
 function buildFileTree(entries: FileEntry[]): TreeNode[] {
   const root: TreeNode = { name: '', path: '', type: 'dir', children: [] }
@@ -804,13 +842,19 @@ function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | 
   const [path, setPath] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [orig, setOrig] = useState('')
-  const [view, setView] = useState<'idle' | 'loading' | 'ok' | 'toobig' | 'binary'>('idle')
+  const [view, setView] = useState<'idle' | 'loading' | 'ok' | 'toobig' | 'binary' | 'image'>('idle')
   const [saving, setSaving] = useState(false)
   const [treeLoading, setTreeLoading] = useState(false)
   const [git, setGit] = useState<Record<string, string>>({}) // path → git status (needs a running sandbox)
   const [showDiff, setShowDiff] = useState(false)
   const [diffText, setDiffText] = useState('')
   const dirty = view === 'ok' && content !== orig
+  // Where toolbar actions (new file / new folder / upload) land: the last
+  // clicked dir, the selected file's parent, or the workspace root.
+  const [actionDir, setActionDir] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
 
   const loadTree = useCallback(() => {
     if (!sandboxId) return
@@ -829,7 +873,9 @@ function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | 
 
   const openFile = async (p: string) => {
     if (dirty && !window.confirm('Discard unsaved changes?')) return
-    setPath(p); setView('loading'); setShowDiff(false)
+    setPath(p); setShowDiff(false)
+    if (isImagePath(p)) { setView('image'); return }
+    setView('loading')
     try {
       const body = (await api.getWorkspaceFile(sandboxId!, p)) ?? ''
       if (body.includes('\u0000')) { setView('binary'); return }
@@ -854,36 +900,141 @@ function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | 
     try { const d = await api.gitDiff(appId, path); setDiffText(d.diff || (d.available ? '(no textual diff)' : d.reason || 'unavailable')) }
     catch (e) { onError((e as Error).message); setShowDiff(false) }
   }
+
+  // --- file manager actions ---
+  const refresh = () => { loadTree(); loadGit() }
+  const joinDir = (dir: string, name: string) => (dir ? `${dir}/${name}` : name)
+
+  const newFile = async () => {
+    if (!sandboxId) return
+    const name = window.prompt(`New file in ${actionDir || 'the workspace root'}:`, 'untitled.txt')?.trim()
+    if (!name || name.includes('/')) return
+    const p = joinDir(actionDir, name)
+    try {
+      await api.writeAppFile(sandboxId, p, '')
+      toast(`Created ${p}`); refresh(); openFile(p)
+    } catch (e) { onError((e as Error).message) }
+  }
+  const newFolder = async () => {
+    if (!sandboxId) return
+    const name = window.prompt(`New folder in ${actionDir || 'the workspace root'}:`, 'folder')?.trim()
+    if (!name || name.includes('/')) return
+    try { await api.mkdir(sandboxId, joinDir(actionDir, name)); toast(`Created ${joinDir(actionDir, name)}/`); refresh() }
+    catch (e) { onError((e as Error).message) }
+  }
+  const doUpload = async (files: { name: string; file: File }[]) => {
+    if (!sandboxId || files.length === 0) return
+    setBusy(true)
+    try {
+      const r = await api.uploadFiles(sandboxId, actionDir, files)
+      toast(`Uploaded ${r.uploaded} file${r.uploaded === 1 ? '' : 's'}${r.warning ? ` (with warnings)` : ''}`)
+      if (r.warning) onError(r.warning)
+      // Expand the target dir and any folder segments the upload created,
+      // so the new files are visible immediately.
+      setOpen((o) => {
+        const next = { ...o, [actionDir]: true }
+        for (const f of files) {
+          const segs = f.name.split('/')
+          let acc = actionDir
+          for (let i = 0; i < segs.length - 1; i++) { acc = acc ? `${acc}/${segs[i]}` : segs[i]; next[acc] = true }
+        }
+        return next
+      })
+      refresh()
+    } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
+  }
+  const renameNode = async (p: string, isDir: boolean) => {
+    if (!sandboxId) return
+    const cur = p.split('/').pop() || p
+    const name = window.prompt(`Rename ${isDir ? 'folder' : 'file'} ${cur} to:`, cur)?.trim()
+    if (!name || name === cur) return
+    setBusy(true)
+    try {
+      const r = await api.renameFile(sandboxId, p, name)
+      toast(`Renamed to ${r.path}`)
+      if (path === p) { setPath(r.path); if (view === 'image' && !isImagePath(r.path)) openFile(r.path) }
+      refresh()
+    } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
+  }
+  const deleteNode = async (p: string, isDir: boolean) => {
+    if (!sandboxId) return
+    if (!window.confirm(`Delete ${isDir ? 'folder' : 'file'} “${p}”${isDir ? ' and everything inside it' : ''}? This cannot be undone.`)) return
+    setBusy(true)
+    try {
+      await api.deleteFile(sandboxId, p)
+      toast(`Deleted ${p}`)
+      if (path === p || path?.startsWith(p + '/')) { setPath(null); setView('idle') }
+      refresh()
+    } catch (e) { onError((e as Error).message) } finally { setBusy(false) }
+  }
+
   if (!sandboxId) return <Card style={{ padding: 18, color: c.muted, fontSize: 13 }}>Create a sandbox to browse and edit files.</Card>
+
+  // Small action glyphs rendered at the end of every tree row.
+  const rowActions = (n: TreeNode) => (
+    <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 7, flex: '0 0 auto', paddingRight: 2 }} onClick={(e) => e.stopPropagation()}>
+      <a href={n.type === 'dir' ? api.fileArchiveUrl(sandboxId, n.path) : api.fileDownloadUrl(sandboxId, n.path)}
+        title={n.type === 'dir' ? 'Download folder (.zip)' : 'Download file'} download
+        className="dc-hoverink" style={{ fontSize: 11, color: c.faint, textDecoration: 'none' }}>⤓</a>
+      <span title="Rename" onClick={() => renameNode(n.path, n.type === 'dir')} className="dc-hoverink" style={{ fontSize: 11, color: c.faint, cursor: 'pointer' }}>✎</span>
+      <span title="Delete" onClick={() => deleteNode(n.path, n.type === 'dir')} className="dc-hoverink" style={{ fontSize: 11, color: c.faint, cursor: 'pointer' }}>✕</span>
+    </span>
+  )
 
   const renderNodes = (nodes: TreeNode[], depth: number): React.ReactNode =>
     nodes.map((n) => n.type === 'dir' ? (
       <Fragment key={n.path}>
-        <div className="dc-hoverink" onClick={() => setOpen((o) => ({ ...o, [n.path]: !o[n.path] }))} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', paddingLeft: 8 + depth * 13, cursor: 'pointer', fontSize: 12.5, color: c.fg2, userSelect: 'none' }}>
-          <span style={{ width: 9, color: c.muted2, fontSize: 9 }}>{open[n.path] ? '▾' : '▸'}</span>{n.name}
+        <div className="dc-hoverink" data-testid={`files-dir-${n.path}`}
+          onClick={() => { setOpen((o) => ({ ...o, [n.path]: !o[n.path] })); setActionDir(n.path) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', paddingLeft: 8 + depth * 13, cursor: 'pointer', fontSize: 12.5, color: c.fg2, userSelect: 'none', background: actionDir === n.path ? c.panel2 : 'transparent', borderRadius: 5 }}>
+          <span style={{ width: 9, color: c.muted2, fontSize: 9 }}>{open[n.path] ? '▾' : '▸'}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.name}</span>
+          {rowActions(n)}
         </div>
         {open[n.path] && renderNodes(n.children, depth + 1)}
       </Fragment>
     ) : (
-      <div key={n.path} className="dc-hoverink" onClick={() => openFile(n.path)} title={`${n.path}${n.size != null ? ` · ${n.size} B` : ''}`} style={{ display: 'flex', alignItems: 'center', paddingLeft: 21 + depth * 13, paddingRight: 8, paddingTop: 3, paddingBottom: 3, cursor: 'pointer', fontSize: 12.5, borderRadius: 5, background: path === n.path ? c.panel2 : 'transparent', color: path === n.path ? c.fg : c.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        <span style={{ ...mono, fontSize: 12.5 }}>{n.name}</span>
-        {git[n.path] && <span title={git[n.path]} style={{ marginLeft: 'auto', paddingLeft: 6, ...mono, fontSize: 10, fontWeight: 700, color: gitColor(git[n.path]) }}>{gitBadge(git[n.path])}</span>}
+      <div key={n.path} className="dc-hoverink" data-testid={`files-file-${n.path}`} onClick={() => { openFile(n.path); setActionDir(n.path.split('/').slice(0, -1).join('/')) }} title={`${n.path}${n.size != null ? ` · ${n.size} B` : ''}`}
+        style={{ display: 'flex', alignItems: 'center', paddingLeft: 21 + depth * 13, paddingRight: 8, paddingTop: 3, paddingBottom: 3, cursor: 'pointer', fontSize: 12.5, borderRadius: 5, background: path === n.path ? c.panel2 : 'transparent', color: path === n.path ? c.fg : c.muted, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+        <span style={{ ...mono, fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.name}</span>
+        {git[n.path] && <span title={git[n.path]} style={{ paddingLeft: 6, ...mono, fontSize: 10, fontWeight: 700, color: gitColor(git[n.path]) }}>{gitBadge(git[n.path])}</span>}
+        {rowActions(n)}
       </div>
     ))
 
+  const parentOf = (p: string) => p.split('/').slice(0, -1).join('/')
+  const dirLabel = actionDir ? actionDir + '/' : 'workspace root'
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : '270px minmax(0,1fr)', gap: 14, alignItems: 'start' }}>
-      <Card style={{ padding: 10, maxHeight: isMobile ? 260 : 660, overflow: 'auto' }} data-testid="files-tree">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 6px 8px' }}>
+      <Card style={{ padding: 10, maxHeight: isMobile ? 300 : 660, overflow: 'auto', outline: dragOver ? `2px dashed ${c.ink}` : 'none', outlineOffset: -4 }} data-testid="files-tree"
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={async (e) => {
+          e.preventDefault(); setDragOver(false)
+          try { await doUpload(await collectDroppedFiles(e.dataTransfer)) }
+          catch (err) { onError((err as Error).message) }
+        }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 6px 8px', flexWrap: 'wrap', gap: 6 }}>
           <H size={13}>Files</H>
-          <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
-            <span onClick={loadTree} title="Refresh" className="dc-hoverink" style={{ cursor: 'pointer', fontSize: 13, color: c.muted2 }}>⟳</span>
+          <div style={{ display: 'flex', gap: 9, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Btn sm onClick={newFile} disabled={busy} data-testid="files-new-file" title={`New file in ${dirLabel}`}>+ File</Btn>
+            <Btn sm onClick={newFolder} disabled={busy} data-testid="files-new-folder" title={`New folder in ${dirLabel}`}>+ Folder</Btn>
+            <Btn sm onClick={() => fileInput.current?.click()} disabled={busy} data-testid="files-upload" title={`Upload into ${dirLabel} (you can also drag & drop files or folders here)`}>⬆ Upload</Btn>
+            <span onClick={refresh} title="Refresh" className="dc-hoverink" style={{ cursor: 'pointer', fontSize: 13, color: c.muted2 }}>⟳</span>
             <a href={api.exportUrl(sandboxId)} title="Download workspace (.zip)" style={{ fontSize: 13, color: c.muted2, textDecoration: 'none' }}>⬇</a>
           </div>
         </div>
+        <input ref={fileInput} type="file" multiple style={{ display: 'none' }}
+          onChange={(e) => {
+            const fs = Array.from(e.target.files || []).map((f) => ({ name: f.name, file: f }))
+            e.target.value = ''
+            doUpload(fs)
+          }} />
         {treeLoading && entries.length === 0 ? <div style={{ padding: 8, color: c.muted2, fontSize: 12 }}>Loading…</div>
-          : entries.length === 0 ? <div style={{ padding: 8, color: c.muted2, fontSize: 12 }}>No files.</div>
+          : entries.length === 0 ? <div style={{ padding: 8, color: c.muted2, fontSize: 12 }}>No files — drag & drop some here.</div>
           : renderNodes(buildFileTree(entries), 0)}
+        {dragOver && <div style={{ marginTop: 8, padding: '10px 8px', border: `1px dashed ${c.border2}`, borderRadius: 7, color: c.muted2, fontSize: 11.5, textAlign: 'center' }}>Drop files or folders to upload into {dirLabel}</div>}
       </Card>
 
       <Card style={{ padding: 0, overflow: 'hidden', minHeight: 440 }}>
@@ -895,14 +1046,21 @@ function FilesTab({ appId, sb, onError, toast }: { appId: string; sb: Sandbox | 
               <span style={{ ...mono, fontSize: 12.5, color: c.fg, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{path}</span>
               {dirty && <span title="Unsaved changes" style={{ width: 7, height: 7, borderRadius: '50%', background: c.warn, flex: '0 0 auto' }} />}
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flex: '0 0 auto' }}>
+                <Btn sm onClick={() => { window.location.href = api.fileDownloadUrl(sandboxId, path) }} title="Download this file" data-testid="files-download-open">⤓</Btn>
                 {git[path] && <Btn sm onClick={toggleDiff} title="Toggle git diff for this file">{showDiff ? 'Edit' : 'Diff'}</Btn>}
+                {view === 'ok' && <Btn sm onClick={() => { renameNode(path, false) }} disabled={busy} title="Rename this file">Rename</Btn>}
                 <Btn sm onClick={() => openFile(path)} disabled={saving}>Reload</Btn>
-                <Btn sm variant="primary" onClick={save} disabled={!dirty || saving}>{saving ? 'Saving…' : 'Save'}</Btn>
+                {view === 'ok' && <Btn sm variant="primary" onClick={save} disabled={!dirty || saving}>{saving ? 'Saving…' : 'Save'}</Btn>}
               </div>
             </div>
             {view === 'loading' ? <div style={{ padding: 30, color: c.muted2, fontSize: 13 }}>Loading…</div>
-              : view === 'toobig' ? <div style={{ padding: 30, color: c.muted2, fontSize: 13 }}>Larger than the 2&nbsp;MiB editor cap — <a href={`/v1/sandboxes/${sandboxId}/files/content?path=${encodeURIComponent(path)}`} style={{ color: c.link }}>open raw</a>.</div>
-              : view === 'binary' ? <div style={{ padding: 30, color: c.muted2, fontSize: 13 }}>Binary file — not shown in the editor.</div>
+              : view === 'image' ? (
+                <div style={{ padding: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', background: `repeating-conic-gradient(${c.panel2} 0% 25%, ${c.panel} 0% 50%) 50% / 22px 22px`, minHeight: 300 }} data-testid="files-image-preview">
+                  <img src={`/v1/sandboxes/${sandboxId}/files/content?path=${encodeURIComponent(path)}`} alt={path} style={{ maxWidth: '100%', maxHeight: isMobile ? 380 : 560, objectFit: 'contain', border: `1px solid ${c.border}`, borderRadius: 8, background: '#fff' }} />
+                </div>
+              )
+              : view === 'toobig' ? <div style={{ padding: 30, color: c.muted2, fontSize: 13 }}>Larger than the 2&nbsp;MiB editor cap — <a href={api.fileDownloadUrl(sandboxId, path)} style={{ color: c.link }}>download it instead</a>.</div>
+              : view === 'binary' ? <div style={{ padding: 30, color: c.muted2, fontSize: 13 }}>Binary file — not shown in the editor. <a href={api.fileDownloadUrl(sandboxId, path)} style={{ color: c.link }}>Download</a>.</div>
               : showDiff ? <DiffView text={diffText} />
               : <Suspense fallback={<div style={{ padding: 30, color: c.muted2, fontSize: 13 }}>Loading editor…</div>}><CodeEditor path={path} value={content} onChange={setContent} onSave={save} /></Suspense>}
           </>

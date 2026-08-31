@@ -253,6 +253,15 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/sandboxes/{id}/files", s.observe("GET /v1/sandboxes/{id}/files", s.v1ListFiles))
 	mux.HandleFunc("GET /v1/sandboxes/{id}/files/content", s.observe("GET /v1/sandboxes/{id}/files/content", s.v1FileContent))
 	mux.HandleFunc("PUT /v1/sandboxes/{id}/files", s.observe("PUT /v1/sandboxes/{id}/files", s.v1PutFile))
+	// File-manager operations (see v1_files_manager.go): single-file
+	// download, per-directory zip, multi-file upload, mkdir, delete and
+	// rename — all host-side, so they work while the sandbox is stopped.
+	mux.HandleFunc("GET /v1/sandboxes/{id}/files/download", s.observe("GET /v1/sandboxes/{id}/files/download", s.v1FileDownload))
+	mux.HandleFunc("GET /v1/sandboxes/{id}/files/archive", s.observe("GET /v1/sandboxes/{id}/files/archive", s.v1FileArchive))
+	mux.HandleFunc("POST /v1/sandboxes/{id}/files/upload", s.observe("POST /v1/sandboxes/{id}/files/upload", s.v1FileUpload))
+	mux.HandleFunc("POST /v1/sandboxes/{id}/files/mkdir", s.observe("POST /v1/sandboxes/{id}/files/mkdir", s.v1FileMkdir))
+	mux.HandleFunc("DELETE /v1/sandboxes/{id}/files", s.observe("DELETE /v1/sandboxes/{id}/files", s.v1FileDelete))
+	mux.HandleFunc("PATCH /v1/sandboxes/{id}/files", s.observe("PATCH /v1/sandboxes/{id}/files", s.v1FileRename))
 	mux.HandleFunc("GET /v1/sandboxes/{id}/export", s.observe("GET /v1/sandboxes/{id}/export", s.v1Export))
 	mux.HandleFunc("GET /v1/sandboxes/{id}/processes/{name}/logs", s.observe("GET /v1/sandboxes/{id}/processes/{name}/logs", s.v1ProcessLogs))
 	mux.HandleFunc("GET /v1/sandboxes/{id}/terminal", s.observe("GET /v1/sandboxes/{id}/terminal", s.v1Terminal))
