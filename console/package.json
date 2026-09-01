@@ -1,7 +1,7 @@
 {
   "name": "sandboxd-console",
   "private": true,
-  "version": "0.4.1-nordineonline.3",
+  "version": "0.4.1-nordineonline.4",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "scripts": {

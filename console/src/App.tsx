@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, setOnUnauthorized, App as TApp, Preset, GitCredential, Agent } from './api'
-import { c, font, mono, Card, Btn, StatusPill, Input, navItem, useIsMobile } from './design/kit'
+import { c, font, mono, Card, Btn, StatusPill, Input, useIsMobile } from './design/kit'
+import { Sidebar } from './Sidebar'
 import { PRESET_ICONS } from './design/presetIcons'
 import { STARTERS, STARTER_ICONS } from './design/starters'
 import { AppView } from './AppView'
@@ -108,70 +109,60 @@ export default function App() {
           </span>
         </div>
       )}
-      {/* TOP BAR */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 18, height: 52, flexShrink: 0, padding: isMobile ? '0 12px' : '0 20px', borderBottom: `1px solid ${c.border}`, background: c.panel, overflowX: 'auto' }}>
-        <div onClick={() => setRoute({ name: 'apps' })} style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', flexShrink: 0 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: 'linear-gradient(135deg,#3f3f46,#18181b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font.mono, fontSize: 11, color: c.bg }}>&gt;_</div>
-          {!isMobile && <span style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, letterSpacing: '.2px' }}>sandboxd <span style={{ fontWeight: 500, color: c.muted }}>console</span></span>}
-        </div>
-        <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
-          {nav.map((n) => (
-            <div key={n.key} data-testid={`nav-${n.key}`} className="dc-hoverink" onClick={() => setRoute({ name: n.key } as Route)} style={navItem(route.name === n.key)}>
-              {n.label}
-            </div>
-          ))}
-        </div>
-        <div style={{ flex: 1 }} />
-        {running && (
-          <div onClick={() => goApp(running.id)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 7, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '4px 10px', cursor: 'pointer', flexShrink: 0 }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.good }} />
-            {!isMobile && <span style={{ ...mono, fontSize: 11.5 }}>{running.name}</span>}
-          </div>
-        )}
+      {/* SIDEBAR (desktop: fixed rail) + MAIN (mobile: Sidebar renders its own top bar with hamburger) */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {!isMobile && (
-          <div onClick={() => setPaletteOpen(true)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '5px 10px', cursor: 'pointer', width: 180, flexShrink: 0 }}>
-            <span style={{ color: c.muted2, fontSize: 12, flex: 1 }}>Search…</span>
-            <span style={{ ...mono, fontSize: 10, color: c.muted2, background: c.panel2, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
-          </div>
-        )}
-        {isMobile && (
-          <button onClick={() => setPaletteOpen(true)} aria-label="Search" className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, cursor: 'pointer', flexShrink: 0, color: c.muted2, fontSize: 14 }}>
-            🔍
-          </button>
-        )}
-        {!isMobile && (
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0 }}>
-            <a href="https://sandboxd.io" target="_blank" rel="noreferrer" className="dc-hoverink" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>Docs</a>
-            <a href="https://github.com/tastyeffectco/sandboxd" target="_blank" rel="noreferrer" className="dc-hoverink" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>GitHub</a>
-            <a href="https://github.com/tastyeffectco/sandboxd/discussions" target="_blank" rel="noreferrer" className="dc-hoverink" data-testid="nav-feedback" style={{ color: c.muted, textDecoration: 'none', fontSize: 12 }}>Feedback</a>
-            {auth?.enabled && (
-              <span data-testid="nav-logout" className="dc-hoverink" onClick={logout} style={{ color: c.muted, fontSize: 12, cursor: 'pointer' }}>Log out</span>
-            )}
-          </div>
-        )}
-        {isMobile && auth?.enabled && (
-          <span data-testid="nav-logout" className="dc-hoverink" onClick={logout} style={{ color: c.muted, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Log out</span>
-        )}
-      </div>
-
-      {/* MAIN */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-        {route.name === 'apps' && <AppsScreen apps={apps} reload={loadApps} onOpen={(id) => goApp(id)} onError={onError} goStore={() => setRoute({ name: 'store' })} />}
-        {route.name === 'brain' && <BrainOverview apps={apps} onOpen={(id) => goApp(id, 'brain')} />}
-        {route.name === 'store' && <StoreView onError={onError} toast={toast} onOpen={(id) => goApp(id)} reloadApps={loadApps} />}
-        {route.name === 'settings' && <SettingsView onError={onError} toast={toast} />}
-        {route.name === 'app' && (
-          <AppView
-            appId={route.id}
-            initialTab={route.tab}
-            onError={onError}
-            toast={toast}
-            goApps={() => { setRoute({ name: 'apps' }); loadApps() }}
-            goSettings={() => setRoute({ name: 'settings' })}
-            apps={apps}
-            onOpenApp={(id, tab) => goApp(id, tab)}
+          <Sidebar
+            nav={nav}
+            active={route.name}
+            onNavigate={(key) => setRoute({ name: key } as Route)}
+            running={running ? { id: running.id, name: running.name } : null}
+            onOpenRunning={() => goApp(running!.id)}
+            logout={logout}
+            authEnabled={!!auth?.enabled}
           />
         )}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          {isMobile && (
+            <Sidebar
+              nav={nav}
+              active={route.name}
+              onNavigate={(key) => setRoute({ name: key } as Route)}
+              running={running ? { id: running.id, name: running.name } : null}
+              onOpenRunning={() => goApp(running!.id)}
+              logout={logout}
+              authEnabled={!!auth?.enabled}
+            />
+          )}
+          {!isMobile && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 20px 0' }}>
+              <div onClick={() => setPaletteOpen(true)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '5px 10px', cursor: 'pointer', width: 180 }}>
+                <span style={{ color: c.muted2, fontSize: 12, flex: 1 }}>Search…</span>
+                <span style={{ ...mono, fontSize: 10, color: c.muted2, background: c.panel2, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
+              </div>
+            </div>
+          )}
+
+          {/* MAIN */}
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+            {route.name === 'apps' && <AppsScreen apps={apps} reload={loadApps} onOpen={(id) => goApp(id)} onError={onError} goStore={() => setRoute({ name: 'store' })} />}
+            {route.name === 'brain' && <BrainOverview apps={apps} onOpen={(id) => goApp(id, 'brain')} />}
+            {route.name === 'store' && <StoreView onError={onError} toast={toast} onOpen={(id) => goApp(id)} reloadApps={loadApps} />}
+            {route.name === 'settings' && <SettingsView onError={onError} toast={toast} />}
+            {route.name === 'app' && (
+              <AppView
+                appId={route.id}
+                initialTab={route.tab}
+                onError={onError}
+                toast={toast}
+                goApps={() => { setRoute({ name: 'apps' }); loadApps() }}
+                goSettings={() => setRoute({ name: 'settings' })}
+                apps={apps}
+                onOpenApp={(id, tab) => goApp(id, tab)}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       {paletteOpen && <Palette apps={apps} close={() => setPaletteOpen(false)} onGo={(r) => { setRoute(r); setPaletteOpen(false) }} />}

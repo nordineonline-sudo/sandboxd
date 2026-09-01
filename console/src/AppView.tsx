@@ -1,5 +1,5 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, RuntimeSuggestion } from './api'
+import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, RuntimeSuggestion, TaskSummary, Agent } from './api'
 import { c, font, mono, Card, H, Btn, Pill, StatusPill, statusTone, Input, tab, useIsMobile } from './design/kit'
 import { DeployModal } from './DeployModal'
 import { IS_DEMO } from './demo'
@@ -10,8 +10,11 @@ import { slugKey, splitInline } from './brain'
 const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.CodeEditor })))
 const SandboxTerminal = lazy(() => import('./Terminal').then((m) => ({ default: m.SandboxTerminal })))
 
-type Msg = { role: 'user' | 'agent'; text: string; taskId?: string; done?: boolean }
-const TABS = ['agent', 'overview', 'brain', 'readme', 'files', 'git', 'config', 'terminal', 'snapshots', 'activity'] as const
+// 'agent' is the headless chat (Telegram/WhatsApp-style, talks to the tasks API
+// directly). 'advanced' is OpenCode's own native web session, iframed — kept
+// as an escape hatch for its full IDE/session features; desktop-only, hidden
+// from the mobile tab bar (see the tabs filter below).
+const TABS = ['agent', 'advanced', 'overview', 'brain', 'readme', 'files', 'git', 'config', 'terminal', 'snapshots', 'activity'] as const
 type Tab = (typeof TABS)[number]
 
 // Per-app agent context (Layer 2). Platform/sandbox conventions come from the
@@ -90,7 +93,7 @@ export function AppView({
   useLayoutEffect(() => {
     const measure = () => {
       const el = tabContentRef.current
-      if (!el || tabName !== 'agent') return
+      if (!el || tabName !== 'agent' && tabName !== 'advanced') return
       setAgentHeightPx(Math.max(320, window.innerHeight - el.getBoundingClientRect().top))
     }
     measure()
@@ -155,10 +158,10 @@ export function AppView({
     catch (e) { onError((e as Error).message) }
   }
 
-  const tabBadge: Record<Tab, string> = { agent: '', overview: '', brain: '', readme: '', files: '', git: '', config: '', terminal: '', snapshots: '', activity: '' }
+  const tabBadge: Record<Tab, string> = { agent: '', advanced: '', overview: '', brain: '', readme: '', files: '', git: '', config: '', terminal: '', snapshots: '', activity: '' }
 
   return (
-    <div className="dc-page" style={{ maxWidth: 1320, margin: '0 auto', padding: tabName === 'agent' ? (isMobile ? '28px 14px 0' : '28px 40px 0') : '28px 40px 80px' }}>
+    <div className="dc-page" style={{ maxWidth: 1320, margin: '0 auto', padding: (tabName === 'agent' || tabName === 'advanced') ? (isMobile ? '28px 14px 0' : '28px 40px 0') : '28px 40px 80px' }}>
       <div style={{ fontSize: 12, color: c.muted2, marginBottom: 10 }}>
         <a onClick={goApps} className="dc-hoverink" style={{ color: c.muted, cursor: 'pointer', textDecoration: 'none' }}>Apps</a>
         <span style={{ margin: '0 4px' }}>/</span><span style={{ color: c.fg }}>{app.name}</span>
@@ -206,9 +209,9 @@ export function AppView({
         </div>
       )}
 
-      {/* tabs */}
+      {/* tabs — "advanced" (the OpenCode web IDE) is a PC-only escape hatch */}
       <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${c.border}`, marginBottom: 24, overflowX: 'auto' }}>
-        {TABS.map((t) => (
+        {TABS.filter((t) => t !== 'advanced' || !isMobile).map((t) => (
           <div key={t} data-testid={`tab-${t}`} className="dc-hoverink" onClick={() => setTabName(t)} style={{ ...tab(tabName === t), textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
             {t}{tabBadge[t] && <span style={{ ...mono, marginLeft: 6, fontSize: 10, color: c.muted2 }}>{tabBadge[t]}</span>}
           </div>
@@ -216,7 +219,8 @@ export function AppView({
       </div>
 
       <div ref={tabContentRef}>
-      {tabName === 'agent' && <AgentTab sb={sb} onError={onError} toast={toast} refresh={refresh} heightPx={agentHeightPx} />}
+      {tabName === 'agent' && <AgentChat sb={sb} onError={onError} toast={toast} refresh={refresh} heightPx={agentHeightPx} />}
+      {tabName === 'advanced' && <AdvancedTab sb={sb} onError={onError} toast={toast} refresh={refresh} heightPx={agentHeightPx} />}
       {tabName === 'overview' && <Overview app={app} sb={sb} previewURL={previewURL} onError={onError} onApplyRuntime={() => sb && applyRuntime(sb.id, { auto: false })} canApply={status === 'running'} />}
       {tabName === 'brain' && <BrainTab appName={app.name} sb={sb} onError={onError} toast={toast} apps={apps} onOpenApp={onOpenApp} />}
       {tabName === 'readme' && <ReadmeTab appName={app.name} sb={sb} onError={onError} toast={toast} />}
@@ -716,22 +720,211 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
   )
 }
 
-// ---------- AGENT (OpenCode's own web UI, embedded) ----------
-// Replaces the old bespoke chat: the console iframes OpenCode's native session
-// UI (opencode.ai/docs/web) instead of re-implementing a chat, so every project
-// gets OpenCode's real provider/model catalog — whatever the owner connects
-// inside it (GitHub Copilot, Anthropic, OpenRouter, local Ollama, …) — with no
-// sandboxd-side provider work. Isolation is structural: each sandbox is its own
-// container with its own OpenCode instance, so switching apps can never mix up
-// sessions or credentials. See docs/agent-auth.md → "OpenCode Web".
+// ---------- AGENT CHAT (headless, Telegram/WhatsApp-style, PC + mobile) ----------
+// Talks directly to the tasks API (POST /v1/sandboxes/{id}/tasks + SSE) — the
+// same mechanism the platform (App Store, auto-runtime-apply, BRAIN.md) already
+// uses. One continuous session per sandbox (no multi-conversation list).
+// Model field accepts "<provider>/<model-id>" for any connected agent — see
+// Settings → AI Agents and docs/agent-auth.md for which providers are wired.
+function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void; heightPx?: number | null }) {
+  const isMobile = useIsMobile()
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [agent, setAgent] = useState('opencode')
+  const [model, setModel] = useState('')
+  const [cont, setCont] = useState(true)
+  const [text, setText] = useState('')
+  const [history, setHistory] = useState<TaskSummary[]>([])
+  const [live, setLive] = useState<{ prompt: string; text: string } | null>(null)
+  const [running, setRunning] = useState(false)
+  const [resolved, setResolved] = useState('')
+  const [reverting, setReverting] = useState<string | null>(null)
+  const esRef = useRef<EventSource | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const sandboxRunning = sb?.status === 'running'
+  const [agentConnected, setAgentConnected] = useState<boolean | null>(null)
+  const inputBlocked = agentConnected === false && agent !== 'opencode'
+  const height = heightPx ? `${heightPx}px` : (isMobile ? 'calc(100vh - 190px)' : 'calc(100vh - 190px)')
+
+  useEffect(() => { api.getAgents().then(setAgents).catch(() => {}) }, [])
+  useEffect(() => {
+    let alive = true
+    api.getAgents()
+      .then((list) => { if (alive) setAgentConnected(list.some((p) => p.id === agent && p.status === 'connected')) })
+      .catch(() => { if (alive) setAgentConnected(null) })
+    return () => { alive = false }
+  }, [agent, history.length])
+
+  useEffect(() => () => { esRef.current?.close(); if (pollRef.current) clearInterval(pollRef.current) }, [])
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight }, [history, live, running])
+
+  const loadHistory = useCallback(async () => {
+    if (!sb) { setHistory([]); return }
+    try { const ts = await api.listTasks(sb.id); setHistory([...ts].reverse()) } catch { /* history is best-effort */ }
+  }, [sb?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadHistory() }, [loadHistory])
+
+  const reloadUntil = async (taskId: string) => {
+    for (let i = 0; i < 8; i++) {
+      try { const ts = await api.listTasks(sb!.id); if (ts.some((t) => t.id === taskId)) { setHistory([...ts].reverse()); return } } catch { /* retry */ }
+      await new Promise((r) => setTimeout(r, 800))
+    }
+    loadHistory()
+  }
+
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const send = async () => {
+    if (!sb || !sandboxRunning || !text.trim() || running) return
+    const prompt = text.trim()
+    setText(''); setLive({ prompt, text: '' }); setResolved(''); setRunning(true)
+    if (promptRef.current) promptRef.current.style.height = 'auto'
+    try {
+      const t = await api.submitTask(sb.id, prompt, agent, model || undefined, cont)
+      let agentText = ''
+      let settled = false
+      const finish = async () => {
+        if (settled) return
+        settled = true
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        try { esRef.current?.close() } catch { /* */ }
+        setRunning(false); refresh(); await reloadUntil(t.id); setLive(null)
+      }
+      const es = new EventSource(api.taskEventsURL(sb.id, t.id))
+      esRef.current = es
+      es.addEventListener('status', (m) => { try { const j = JSON.parse((m as MessageEvent).data); if (j.model) setResolved(j.model) } catch { /* */ } })
+      es.addEventListener('message', (m) => {
+        try { const j = JSON.parse((m as MessageEvent).data); if (j.role === 'agent' && j.text) { agentText += j.text; setLive((l) => (l ? { ...l, text: agentText } : l)) } } catch { /* */ }
+      })
+      es.addEventListener('done', () => { finish() })
+      es.onerror = () => { try { es.close() } catch { /* */ } }
+      let ticks = 0
+      pollRef.current = setInterval(async () => {
+        ticks++
+        try {
+          const cur = (await api.listTasks(sb.id)).find((x) => x.id === t.id)
+          if (cur && ['succeeded', 'failed', 'cancelled', 'error'].includes(cur.status)) { finish(); return }
+        } catch { /* */ }
+        if (ticks >= 360) finish() // ~15 min hard cap
+      }, 2500)
+    } catch (e) { setRunning(false); setLive(null); onError((e as Error).message) }
+  }
+
+  const revert = async (t: TaskSummary) => {
+    if (!sb) return
+    if (!window.confirm('Revert the workspace to BEFORE this task?\n\nThis discards every file change from this task onward (installed packages and build caches are kept). It cannot be undone.')) return
+    setReverting(t.id)
+    try { await api.revertTask(sb.id, t.id); toast('Reverted to checkpoint'); refresh(); await loadHistory() }
+    catch (e) { onError((e as Error).message) } finally { setReverting(null) }
+  }
+
+  const tone = (s: string) => (s === 'succeeded' ? c.good : s === 'failed' ? c.bad : s === 'cancelled' ? c.muted2 : c.warn)
+  const bubble = (role: 'user' | 'agent', text: string) => (
+    <div style={{ display: 'flex', justifyContent: role === 'user' ? 'flex-end' : 'flex-start' }}>
+      <div style={{ maxWidth: isMobile ? '88%' : '78%', fontSize: isMobile ? 14 : 12.5, borderRadius: role === 'user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px', padding: isMobile ? '10px 14px' : '8px 11px', whiteSpace: 'pre-wrap', lineHeight: 1.45, background: role === 'user' ? c.ink : c.panel2, color: role === 'user' ? '#fff' : c.fg, border: role === 'user' ? 'none' : `1px solid ${c.border}` }}>{text}</div>
+    </div>
+  )
+
+  const panel: React.CSSProperties = { height, minHeight: 380, display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.muted2, fontSize: 13, textAlign: 'center', padding: 20 }
+  if (!sb) return <Card style={panel}>Create a sandbox to start building with the agent.</Card>
+  if (sb.status !== 'running') return <Card style={panel}>Start the sandbox to open the agent.</Card>
+
+  const runnableAgents = agents.filter((a) => a.id !== 'codex' && a.runnable)
+
+  return (
+    <Card style={{ display: 'flex', flexDirection: 'column', height, minHeight: 380, overflow: 'hidden' }} data-testid="agent-chat">
+      {/* header: agent/model pickers — condensed on mobile, "..." style could be added later */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '10px 12px' : '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel3, flexWrap: 'wrap' }}>
+        <label title="Continue the sandbox's most recent agent session instead of starting fresh" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: cont ? c.fg : c.muted2, cursor: 'pointer' }} data-testid="task-continue">
+          <input type="checkbox" checked={cont} onChange={(e) => setCont(e.target.checked)} style={{ accentColor: c.ink, width: 14, height: 14 }} />
+          {!isMobile && 'Continue'}
+        </label>
+        <select value={agent} onChange={(e) => { setAgent(e.target.value); setModel('') }} data-testid="task-agent" style={selStyle}>
+          {(runnableAgents.length ? runnableAgents : [{ id: 'opencode', label: 'OpenCode' } as Agent]).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+        </select>
+        <Input mono value={model} onChange={(e) => setModel(e.target.value)} placeholder="model (blank = default)" style={{ width: isMobile ? 130 : 190, fontSize: 11.5, padding: '6px 8px' }} data-testid="task-model" />
+        <div style={{ marginLeft: 'auto' }} />
+      </div>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 10px' : 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {history.length === 0 && !live && !running && (
+          <div style={{ margin: 'auto', textAlign: 'center', color: c.muted2, fontSize: 12.5, maxWidth: 240 }}>Ask the agent to change this app — it works inside the sandbox and nothing is committed until you approve.</div>
+        )}
+        {history.map((t) => {
+          const files = t.files_changed || []
+          return (
+            <Fragment key={t.id}>
+              {t.prompt && bubble('user', t.prompt)}
+              {bubble('agent', t.agent_message || t.error_message || `(${t.status})`)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 2, fontSize: 11, color: c.muted2 }}>
+                <span style={{ ...mono, fontWeight: 700, color: tone(t.status), textTransform: 'uppercase' }}>{t.status}</span>
+                {files.length > 0 && <span title={files.join('\n')}>{files.length} file{files.length === 1 ? '' : 's'} changed</span>}
+                {t.can_revert && (
+                  <span
+                    onClick={() => sandboxRunning && reverting !== t.id && revert(t)}
+                    title={sandboxRunning ? 'Revert the workspace to before this task' : 'Start the sandbox to revert'}
+                    className={sandboxRunning ? 'dc-hoverink' : undefined}
+                    style={{ marginLeft: 'auto', cursor: sandboxRunning ? 'pointer' : 'default', color: sandboxRunning ? c.link : c.faint }}
+                  >{reverting === t.id ? 'reverting…' : '↩ revert'}</span>
+                )}
+              </div>
+            </Fragment>
+          )
+        })}
+        {live && <>{bubble('user', live.prompt)}{bubble('agent', live.text || '…')}</>}
+        {resolved && <div style={{ ...mono, fontSize: 10.5, color: c.muted2 }}>▸ {resolved}</div>}
+        {running && <div style={{ ...mono, fontSize: 11.5, color: c.muted2, animation: 'pulse 1.4s ease-in-out infinite' }}>▍ working…</div>}
+      </div>
+      {inputBlocked && (
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${c.border}`, background: c.panel2, fontSize: 12, color: c.fg }} data-testid="agent-not-connected">
+          ⚠ No <b>{agent === 'claude-code' ? 'Claude Code' : agent}</b> agent connected — connect one in <b>Settings → AI Agents</b> to start building.
+        </div>
+      )}
+      {agent === 'opencode' && agentConnected === false && (
+        <div style={{ padding: '8px 12px', borderTop: `1px solid ${c.border}`, background: c.panel2, fontSize: 12, color: c.muted2 }} data-testid="opencode-free-tier">
+          Using the <b>OpenCode free tier</b> — no setup needed. Connect an API key in <b>Settings → AI Agents</b> for the full model catalog.
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, padding: isMobile ? '10px 8px' : 10, borderTop: `1px solid ${c.border}`, background: c.panel3, alignItems: 'flex-end' }}>
+        <textarea
+          ref={promptRef}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value)
+            const el = e.target
+            el.style.height = 'auto'
+            el.style.height = `${Math.min(el.scrollHeight, isMobile ? 140 : 160)}px`
+          }}
+          // Enter always inserts a newline on mobile (never sends — mobile
+          // keyboards use Enter for line breaks); Shift+Enter for a newline on
+          // desktop, plain Enter sends.
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); send() } }}
+          placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? (isMobile ? 'Message the agent…' : 'Message the agent… (Shift+Enter for a new line)') : 'Start the sandbox to run tasks'}
+          data-testid="task-prompt"
+          rows={isMobile ? 1 : 2}
+          style={{ flex: 1, background: '#fff', border: `1px solid ${c.border2}`, borderRadius: 10, padding: isMobile ? '11px 13px' : '8px 11px', color: c.fg, fontSize: isMobile ? 15 : 12.5, fontFamily: font.sans, resize: 'none', minHeight: isMobile ? 44 : 46, maxHeight: isMobile ? 140 : 160, lineHeight: 1.4 }}
+        />
+        <Btn variant="primary" onClick={send} disabled={!sb || !sandboxRunning || running || inputBlocked} data-testid="run-task" style={isMobile ? { width: 44, height: 44, borderRadius: '50%', padding: 0, fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center' } : undefined}>
+          {isMobile ? '↑' : 'Send'}
+        </Btn>
+      </div>
+    </Card>
+  )
+}
+const selStyle: React.CSSProperties = { background: c.bg, border: `1px solid ${c.border2}`, borderRadius: 7, padding: '6px 8px', color: c.fg, fontSize: 11.5, fontFamily: font.sans }
+
+// ---------- ADVANCED (OpenCode's own web UI, embedded — PC-only escape hatch) ----------
+// Kept alongside AgentChat above: OpenCode's native session UI (opencode.ai/docs/web)
+// gives access to its full IDE/session/provider catalog inside the sandbox — whatever
+// the owner connects inside it (GitHub Copilot, Anthropic, OpenRouter, local Ollama, …).
+// Isolation is structural: each sandbox is its own container with its own OpenCode
+// instance, so switching apps can never mix up sessions or credentials.
+// See docs/agent-auth.md → "OpenCode Web".
 //
 // The frame src is the sandbox's dedicated host
 // (opencode-<id>.preview.<domain>?auth_token=…), minted by the control plane —
 // OpenCode's web client resolves its API base from location.origin with
 // hardcoded absolute paths, so it can't live under a /v1 sub-path. The token is
 // per-sandbox and only issued to authenticated console sessions.
-// ---------- AGENT (the OpenCode web chat, full page width) ----------
-function AgentTab({ sb, heightPx }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void; heightPx?: number | null }) {
+function AdvancedTab({ sb, heightPx }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void; heightPx?: number | null }) {
   const isMobile = useIsMobile()
   // The whole remaining viewport height — the agent is the working surface, not
   // a side panel. When a pixel measure is available (AppView measures the space

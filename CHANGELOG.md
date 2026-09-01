@@ -6,6 +6,30 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.4] — 2026-09-01
+
+* feat(console): **sidebar navigation** — the top bar becomes a fixed left
+  rail on desktop and a hamburger-opened full-height drawer on mobile,
+  touch-sized (`Sidebar.tsx`), by @nordineonline-sudo (fork)
+* feat(console): **headless agent chat**, Telegram/WhatsApp-style, on PC and
+  mobile — chat bubbles, auto-expanding textarea, Enter-safe on mobile
+  keyboards, round send button; drives the existing
+  `/v1/sandboxes/{id}/tasks` + SSE API (no new backend surface). OpenCode's
+  own native web session moves to a desktop-only **Advanced** tab,
+  by @nordineonline-sudo (fork)
+* feat(control-plane): generalized the MiniMax-style credential-only gateway
+  (`authproxy.creditOnlyProviders`) to **6 more providers wired end-to-end** —
+  OpenAI, DeepSeek, OpenRouter, Cerebras, NVIDIA, xAI — connectable in
+  Settings → AI Agents and usable from the OpenCode agent as
+  `<provider>/<model-id>`, by @nordineonline-sudo (fork)
+* feat(agentauth): **10 further providers** connectable (key stored securely)
+  — Google, Amazon Bedrock, Azure OpenAI, GitHub Copilot, Cloudflare/Vercel AI
+  Gateway, Hugging Face, Z.AI, Perplexity, Mistral — not yet routed by the
+  proxy (need a non-bearer auth scheme); see `docs/agent-auth.md`,
+  by @nordineonline-sudo (fork)
+* docs: README section 8, release-history table, `docs/agent-auth.md`
+  provider directory, by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.3] — 2026-09-01
 
 * feat(settings): custom global **Agent instructions** — saved from

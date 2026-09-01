@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, ReactNode } from 'react'
 import { api, Settings as TSettings, Agent, GitCredential, ApiKey } from './api'
-import { c, font, mono, Card, H, Btn, Pill, Input } from './design/kit'
+import { c, font, mono, Card, H, Btn, Pill, Input, useIsMobile } from './design/kit'
 
 // --- source badges: every value on this page is one of these ----------------
 // editable  → change it here, saved live via PATCH /v1/settings
@@ -18,14 +18,20 @@ function Src({ env, kind }: { env?: string; kind?: SrcKind }) {
 
 // One read-only instance field: label · value · where it comes from.
 function Field({ label, value, env, kind }: { label: string; value: ReactNode; env?: string; kind?: SrcKind }) {
+  const isMobile = useIsMobile()
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr auto', gap: 12, alignItems: 'center', padding: '7px 0', borderBottom: `1px solid ${c.panel2}`, fontSize: 12.5 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '150px 1fr auto', gap: isMobile ? 3 : 12, alignItems: isMobile ? 'flex-start' : 'center', padding: '7px 0', borderBottom: `1px solid ${c.panel2}`, fontSize: 12.5 }}>
       <span style={{ color: c.muted }}>{label}</span>
       <span style={{ ...mono, fontSize: 11.5, color: c.fg2, overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
       <Src env={env} kind={kind} />
     </div>
   )
 }
+
+// Credential-only providers already routed by the credential proxy (usable
+// right away as "<id>/<model>" from the OpenCode agent). Kept in sync with
+// authproxy.creditOnlyProviders on the control-plane side.
+const WIRED_GATEWAY_IDS = new Set(['minimax', 'openai', 'deepseek', 'openrouter', 'cerebras', 'nvidia', 'xai'])
 
 function SectionTitle({ children, note }: { children: ReactNode; note?: string }) {
   return (
@@ -37,6 +43,7 @@ function SectionTitle({ children, note }: { children: ReactNode; note?: string }
 }
 
 export function SettingsView({ onError, toast }: { onError: (m: string) => void; toast: (m: string) => void }) {
+  const isMobile = useIsMobile()
   const [s, setS] = useState<TSettings | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
   const [creds, setCreds] = useState<GitCredential[]>([])
@@ -106,15 +113,19 @@ export function SettingsView({ onError, toast }: { onError: (m: string) => void;
           {agents.map((a) => {
             // Codex is disabled for now — its ChatGPT-subscription auth can't be
             // put behind the credential proxy yet (see the note below).
-            // MiniMax is a credential-only provider (no task-agent CLI); it's
-            // connectable here but never appears in the run picker.
+            // Credential-only providers (no task-agent CLI, never in the run
+            // picker) split into two groups: WIRED_GATEWAY_IDS are routed by the
+            // credential proxy today (usable as "<id>/<model>" from the OpenCode
+            // agent, right away); the rest store the key securely but aren't
+            // routed yet (need a non-bearer auth scheme) — see docs/agent-auth.md.
             const disabled = a.id === 'codex'
             const credentialOnly = !a.runnable && a.id !== 'codex'
+            const gatewayWired = WIRED_GATEWAY_IDS.has(a.id)
             return (
             <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', border: `1px solid ${c.border}`, borderRadius: 8, background: c.panel2, marginBottom: 8, opacity: disabled ? 0.6 : 1 }} data-testid={`agent-${a.id}`}>
               <div>
                 <div style={{ fontWeight: 500 }}>{a.label}</div>
-                <div style={{ ...mono, fontSize: 11, color: c.muted2 }}>{disabled ? 'temporarily unavailable' : `${a.installed_state === 'installed' ? 'installed' : 'not installed'}${a.status === 'connected' && a.method ? ` · via ${a.method === 'oauth' ? 'subscription' : 'API key'}` : ''}${credentialOnly ? ' · model gateway' : ''}`}</div>
+                <div style={{ ...mono, fontSize: 11, color: c.muted2 }}>{disabled ? 'temporarily unavailable' : `${a.installed_state === 'installed' ? 'installed' : 'not installed'}${a.status === 'connected' && a.method ? ` · via ${a.method === 'oauth' ? 'subscription' : 'API key'}` : ''}${credentialOnly ? (gatewayWired ? ' · model gateway' : ' · key stored — routing coming soon') : ''}`}</div>
               </div>
               {disabled ? (
                 <span style={{ marginLeft: 'auto' }}><Pill tone="neutral">disabled</Pill></span>
@@ -141,11 +152,11 @@ export function SettingsView({ onError, toast }: { onError: (m: string) => void;
             <Src kind={modelsEditable ? 'editable' : undefined} env={modelsEditable ? undefined : 'SANDBOXD_OPENCODE_MODEL'} />
             <span style={{ marginLeft: 'auto', fontSize: 11.5, color: c.muted2 }}>optional — used when a task doesn't pick a model</span>
           </div>
-          <div style={{ color: c.muted2, fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>Paste each agent's own model id (e.g. OpenCode <span style={{ ...mono, fontSize: 11 }}>glm-5</span>, Claude <span style={{ ...mono, fontSize: 11 }}>sonnet</span>). Leave blank for the agent's default — OpenCode with no API key falls back to its free tier (<span style={{ ...mono, fontSize: 11 }}>big-pickle</span>).</div>
+          <div style={{ color: c.muted2, fontSize: 12, lineHeight: 1.5, marginBottom: 10 }}>Paste each agent's own model id (e.g. OpenCode <span style={{ ...mono, fontSize: 11 }}>glm-5</span>, Claude <span style={{ ...mono, fontSize: 11 }}>sonnet</span>). Leave blank for the agent's default — OpenCode with no API key falls back to its free tier (<span style={{ ...mono, fontSize: 11 }}>big-pickle</span>). To use a connected provider below (OpenAI, DeepSeek, OpenRouter, Cerebras, NVIDIA, xAI, MiniMax) from the <b>OpenCode</b> agent, prefix the model with its id, e.g. <span style={{ ...mono, fontSize: 11 }}>openai/gpt-4o-mini</span> — also works directly in the Agent chat's model field.</div>
           {agents.filter((a) => a.id !== 'codex' && a.runnable).map((a) => (
-            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <span style={{ width: 130, fontSize: 12.5, color: c.muted }}>{a.label}</span>
-              <Input mono value={models[a.id] || ''} onChange={(e) => setModels({ ...models, [a.id]: e.target.value })} disabled={!modelsEditable} placeholder={a.id === 'opencode' ? 'big-pickle (free tier)' : 'agent default'} style={{ width: 260 }} data-testid={`agent-model-${a.id}`} />
+            <div key={a.id} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? 4 : 10, marginBottom: isMobile ? 12 : 6 }}>
+              <span style={{ width: isMobile ? undefined : 130, fontSize: 12.5, color: c.muted }}>{a.label}</span>
+              <Input mono value={models[a.id] || ''} onChange={(e) => setModels({ ...models, [a.id]: e.target.value })} disabled={!modelsEditable} placeholder={a.id === 'opencode' ? 'big-pickle (free tier)' : 'agent default'} style={{ width: isMobile ? '100%' : 260 }} data-testid={`agent-model-${a.id}`} />
             </div>
           ))}
           {modelsEditable

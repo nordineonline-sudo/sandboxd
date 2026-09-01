@@ -26,6 +26,41 @@ var registry = []Provider{
 	// no task-agent CLI and is never run by runtimed (Runnable=false), so the
 	// console shows it as a credential-only entry, not a run picker option.
 	{ID: "minimax", Label: "MiniMax", Binary: ""},
+
+	// The following are additional credential-only model providers (same shape
+	// as MiniMax above): the owner connects an API key in Settings, the auth
+	// proxy injects it for that provider's upstream, and the model is used via
+	// the "opencode" agent as "<id>/<model>" (see authproxy.upstreams and
+	// cmd/runtimed/opencode.go's provider-prefixed routing). None of these run
+	// their own task-agent CLI.
+	//
+	// Fully wired to the credential proxy (a stored key here is immediately
+	// usable in a task/chat — see authproxy/proxy.go's creditOnlyProviders):
+	{ID: "openai", Label: "OpenAI", Binary: ""},
+	{ID: "deepseek", Label: "DeepSeek", Binary: ""},
+	{ID: "openrouter", Label: "OpenRouter", Binary: ""},
+	{ID: "cerebras", Label: "Cerebras", Binary: ""},
+	{ID: "nvidia", Label: "NVIDIA", Binary: ""},
+	{ID: "xai", Label: "xAI", Binary: ""},
+
+	// Connectable here (key stored securely) but NOT YET routed by the auth
+	// proxy — these need a non-static-bearer auth scheme (AWS SigV4, GCP
+	// service account, Azure deployment/api-key headers, GitHub OAuth device
+	// flow) or a per-account endpoint segment (Cloudflare/Vercel gateways) that
+	// the generic bearer-token proxy path doesn't cover yet. Connecting one
+	// here does not yet make it usable in a task — use the OpenCode web
+	// "Advanced / IDE" tab to connect and use these directly inside the sandbox
+	// in the meantime.
+	{ID: "google", Label: "Google", Binary: ""},
+	{ID: "amazon-bedrock", Label: "Amazon Bedrock", Binary: ""},
+	{ID: "azure", Label: "Azure OpenAI", Binary: ""},
+	{ID: "github-copilot", Label: "GitHub Copilot", Binary: ""},
+	{ID: "cloudflare-ai-gateway", Label: "Cloudflare AI Gateway", Binary: ""},
+	{ID: "vercel-ai-gateway", Label: "Vercel AI Gateway", Binary: ""},
+	{ID: "huggingface", Label: "Hugging Face", Binary: ""},
+	{ID: "zai", Label: "Z.AI", Binary: ""},
+	{ID: "perplexity", Label: "Perplexity", Binary: ""},
+	{ID: "mistral", Label: "Mistral", Binary: ""},
 }
 
 // Providers returns a copy of the registry in display order.
@@ -86,11 +121,27 @@ var apiKeyEnv = map[string]string{
 	"claude-code": "ANTHROPIC_API_KEY",
 	"codex":       "OPENAI_API_KEY",
 	"opencode":    "OPENCODE_API_KEY",
-	// MiniMax is a credential-only provider; its key is read from the stored
-	// key file and injected by the auth proxy for the minimax upstreams. No CLI
-	// reads this env var (MiniMax is never run as a task agent), so the name is
-	// advisory only.
-	"minimax": "MINIMAX_API_KEY",
+	// Credential-only providers (see registry above): no CLI reads these vars
+	// directly (none run as a task agent), so the names below are advisory —
+	// the real credential is read from the stored key file and injected by the
+	// auth proxy on the wire (see authproxy/proxy.go).
+	"minimax":               "MINIMAX_API_KEY",
+	"openai":                "OPENAI_API_KEY",
+	"deepseek":              "DEEPSEEK_API_KEY",
+	"openrouter":            "OPENROUTER_API_KEY",
+	"cerebras":              "CEREBRAS_API_KEY",
+	"nvidia":                "NVIDIA_API_KEY",
+	"xai":                   "XAI_API_KEY",
+	"google":                "GOOGLE_GENERATIVE_AI_API_KEY",
+	"amazon-bedrock":        "AWS_BEARER_TOKEN_BEDROCK",
+	"azure":                 "AZURE_OPENAI_API_KEY",
+	"github-copilot":        "GITHUB_COPILOT_TOKEN",
+	"cloudflare-ai-gateway": "CLOUDFLARE_API_TOKEN",
+	"vercel-ai-gateway":     "VERCEL_AI_GATEWAY_API_KEY",
+	"huggingface":           "HF_TOKEN",
+	"zai":                   "ZAI_API_KEY",
+	"perplexity":            "PERPLEXITY_API_KEY",
+	"mistral":               "MISTRAL_API_KEY",
 }
 
 // APIKeyEnv returns the env var name a provider's CLI reads its API key from.

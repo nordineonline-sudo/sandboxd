@@ -204,6 +204,27 @@ Customize how the coding agents behave for the whole instance, from
 - Applies to the **next** tasks on every sandbox (live settings, read at task
   submit by the control plane and passed to runtimed).
 
+### 8. Mobile-first navigation & chat, expanded model providers
+*Release `0.4.1-nordineonline.4`.*
+
+- **Sidebar navigation**: the old top bar is now a left-hand rail on desktop
+  and a hamburger-opened full-height drawer on mobile — sized and spaced for
+  touch, without changing the PC layout's density.
+- **Headless agent chat, Telegram/WhatsApp-style, PC + mobile**: a real chat UI
+  (bubbles, auto-expanding textarea, Enter-safe on mobile keyboards, one round
+  send button) drives the same `/v1/sandboxes/{id}/tasks` + SSE API the
+  platform already used — no new moving parts. OpenCode's own native web
+  session is kept as an **Advanced** tab (desktop-only) for its full
+  IDE/session features.
+- **6 more model providers wired end-to-end** (OpenAI, DeepSeek, OpenRouter,
+  Cerebras, NVIDIA, xAI) — connect an API key in Settings → AI Agents, then use
+  it from the chat as `<provider>/<model-id>` (e.g. `openai/gpt-4o-mini`), on
+  top of the existing MiniMax gateway. **10 further providers** (Google, Amazon
+  Bedrock, Azure OpenAI, GitHub Copilot, Cloudflare/Vercel AI Gateway, Hugging
+  Face, Z.AI, Perplexity, Mistral) are connectable (key stored securely) but
+  not yet routed by the credential proxy — see
+  [`docs/agent-auth.md`](docs/agent-auth.md) for the full list and status.
+
 ### Where the fork differs operationally
 
 - **Versioning** is pinned for the deployment: images are tagged
@@ -292,6 +313,7 @@ All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 
 | Version | Highlights |
 | --- | --- |
+| `0.4.1-nordineonline.4` | **Mobile-first sidebar & chat** — hamburger drawer nav, Telegram-style headless agent chat (PC + mobile), OpenCode web kept as an Advanced tab; **6 more model providers** wired to the credential proxy (OpenAI, DeepSeek, OpenRouter, Cerebras, NVIDIA, xAI). |
 | `0.4.1-nordineonline.3` | **Custom agent instructions** (Settings → Agent instructions (custom)) — global prompt suffix, persisted, appended to every next task. |
 | `0.4.1-nordineonline.2` | **Real file manager** in the Files tab — upload (multi + drag & drop folders), download file/folder zip, mkdir/rename/delete, image preview. |
 | `0.4.1-nordineonline.1` | **Dedicated agent tab** (first, default, full width) + **README tab** (view/edit). |

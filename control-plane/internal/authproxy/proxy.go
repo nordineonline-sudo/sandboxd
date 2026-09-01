@@ -53,13 +53,40 @@ var upstreams = map[string]string{
 	"minimax-cn":           "https://api.minimaxi.com/v1",
 	"minimax-anthropic":    "https://api.minimax.io/anthropic",
 	"minimax-anthropic-cn": "https://api.minimaxi.com/anthropic",
+	// Additional credential-only providers (Settings → AI Agents), all
+	// OpenAI-compatible bearer-token endpoints — same shape as MiniMax above,
+	// generalized via creditOnlyProviders instead of one-off switch cases.
+	// ("openai" reuses the pre-existing api.openai.com/v1 entry above.)
+	"deepseek":   "https://api.deepseek.com/v1",
+	"openrouter": "https://openrouter.ai/api/v1",
+	"cerebras":   "https://api.cerebras.ai/v1",
+	"nvidia":     "https://integrate.api.nvidia.com/v1",
+	"xai":        "https://api.x.ai/v1",
+}
+
+// creditOnlyProviders maps an <upstream> segment to the agentauth provider ID
+// whose stored credential the proxy injects, REGARDLESS of which coding agent
+// (opencode, claude-code, …) carries the request. These providers have no
+// task-agent CLI of their own (Runnable=false in the registry) — they're
+// reached through another agent (typically "opencode", via a
+// provider-prefixed model id like "openai/gpt-4o-mini"), same as MiniMax.
+var creditOnlyProviders = map[string]string{
+	"minimax":              "minimax",
+	"minimax-cn":           "minimax",
+	"minimax-anthropic":    "minimax",
+	"minimax-anthropic-cn": "minimax",
+	"openai":               "openai",
+	"deepseek":             "deepseek",
+	"openrouter":           "openrouter",
+	"cerebras":             "cerebras",
+	"nvidia":               "nvidia",
+	"xai":                  "xai",
 }
 
 // isMiniMaxUpstream reports whether <upstream> is one of the MiniMax direct
-// endpoints. MiniMax is a credential-only provider: whatever coding agent
-// carries the request, the proxy injects the connected MiniMax API key
-// (Bearer; MiniMax's OpenAI- and Anthropic-compatible endpoints both accept
-// Authorization: Bearer) rather than the agent's own credential.
+// endpoints — kept as a narrow helper for the one path (opencode's
+// zero-friction free-tier fallback in the router below) that must never be
+// rewritten to Zen even for a MiniMax request.
 func isMiniMaxUpstream(up string) bool {
 	switch up {
 	case "minimax", "minimax-cn", "minimax-anthropic", "minimax-anthropic-cn":
@@ -96,10 +123,10 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	agent, up := segs[0], segs[1]
-	// MiniMax direct endpoints are credential-only — never rewrite them to the
-	// opencode free-tier path (a MiniMax request needs the connected MiniMax key,
-	// never Zen's keyless free models).
-	if !isMiniMaxUpstream(up) && agent == "opencode" && p.store.Method("opencode") == "" {
+	// Credential-only upstreams (MiniMax + the generic bearer providers) are
+	// never rewritten to the opencode free-tier path — each needs its OWN
+	// connected key, never Zen's keyless free models.
+	if _, ok := creditOnlyProviders[up]; !ok && agent == "opencode" && p.store.Method("opencode") == "" {
 		up = "zen"
 	}
 	rest := "/"
@@ -185,13 +212,14 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // credFor returns a header-injector for (agent, upstream) using the agent's
 // stored credential, or ok=false when there's no usable/proxyable credential.
 func (p *Proxy) credFor(agent, up string) (func(http.Header), bool) {
-	// MiniMax direct endpoints are credential-only: regardless of which coding
-	// agent carries the request, the proxy injects the connected MiniMax API key
-	// (Bearer — MiniMax's OpenAI- and Anthropic-compatible endpoints both accept
-	// Authorization: Bearer). The carrying agent's own credential is irrelevant
-	// here; MiniMax has no task-agent CLI of its own.
-	if isMiniMaxUpstream(up) {
-		key := readTrim(filepath.Join(p.store.Dir("minimax"), agentauth.APIKeyFile))
+	// Credential-only providers (MiniMax + the generic bearer-token providers
+	// added alongside it): regardless of which coding agent carries the
+	// request, the proxy injects THAT provider's own connected API key
+	// (Bearer — every upstream in creditOnlyProviders is OpenAI-compatible and
+	// accepts Authorization: Bearer). The carrying agent's own credential is
+	// irrelevant here; none of these have a task-agent CLI of their own.
+	if providerID, ok := creditOnlyProviders[up]; ok {
+		key := readTrim(filepath.Join(p.store.Dir(providerID), agentauth.APIKeyFile))
 		if key == "" {
 			return nil, false
 		}

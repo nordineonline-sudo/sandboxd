@@ -44,8 +44,10 @@ wire. A task can neither read, exfiltrate, nor clobber the credential.
 Sandbox base URLs are `<proxy>/<agent>/<upstream>/…`; the proxy resolves the
 agent's stored credential for that upstream and injects it. Upstreams:
 `anthropic`, `openai`, `zen` (OpenCode Zen pay-as-you-go), `zengo` (OpenCode Zen
-"go" subscription), and the MiniMax direct endpoints `minimax`,
-`minimax-cn` (China), `minimax-anthropic`, `minimax-anthropic-cn` (China).
+"go" subscription), the MiniMax direct endpoints `minimax`,
+`minimax-cn` (China), `minimax-anthropic`, `minimax-anthropic-cn` (China), and
+the generic credential-only providers below (`deepseek`, `openrouter`,
+`cerebras`, `nvidia`, `xai` — `openai` reuses the `openai` upstream).
 
 - **claude-code** — `ANTHROPIC_BASE_URL` = `<proxy>/claude-code/anthropic`,
   `ANTHROPIC_API_KEY` = `sandboxd-proxy-injected`. Works for both an API key and
@@ -77,6 +79,33 @@ agent's stored credential for that upstream and injects it. Upstreams:
   MiniMax model metadata (retained for operator reference): **MiniMax-M3** —
   1,000,000-token context, image and video input, adaptive or disabled thinking,
   pricing $0.60 / $2.40 / $0.12 per million input / output / cache-read tokens.
+
+- **Generic credential-only providers** — connecting one in Settings → AI
+  Agents (`POST /v1/agents/<id>/api-key`) immediately makes it usable from the
+  `opencode` agent by selecting the model as `<id>/<model-id>` (e.g.
+  `openai/gpt-4o-mini`, `deepseek/deepseek-chat`). Same mechanism as MiniMax,
+  generalized (`authproxy.creditOnlyProviders`): none run their own task-agent
+  CLI; the proxy injects that provider's own connected key (Bearer,
+  OpenAI-compatible) regardless of the carrying agent.
+
+  | Provider | id | Upstream |
+  |---|---|---|
+  | OpenAI | `openai` | `https://api.openai.com/v1` |
+  | DeepSeek | `deepseek` | `https://api.deepseek.com/v1` |
+  | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
+  | Cerebras | `cerebras` | `https://api.cerebras.ai/v1` |
+  | NVIDIA | `nvidia` | `https://integrate.api.nvidia.com/v1` |
+  | xAI | `xai` | `https://api.x.ai/v1` |
+
+  A further 10 providers (Google, Amazon Bedrock, Azure OpenAI, GitHub Copilot,
+  Cloudflare AI Gateway, Vercel AI Gateway, Hugging Face, Z.AI, Perplexity,
+  Mistral) are connectable in Settings (the key is stored securely) but are
+  **not yet routed by the proxy** — they need a non-bearer auth scheme (AWS
+  SigV4, GCP service account, Azure deployment/api-key headers, GitHub OAuth
+  device flow) or a per-account endpoint segment that the generic bearer-token
+  path above doesn't cover. Connecting one there does not yet make it usable in
+  a task; use the OpenCode web "Advanced / IDE" tab to connect and use them
+  directly inside the sandbox in the meantime.
   **MiniMax-M2.7** — 204,800-token context, text input, always-on thinking,
   pricing $0.30 / $1.20 / $0.06 per million input / output / cache-read tokens.
   MiniMax endpoints authorize with `Authorization: Bearer <key>`.
