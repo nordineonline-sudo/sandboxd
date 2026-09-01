@@ -310,6 +310,39 @@ paths:
                         supports_api_key: { type: boolean }
                         runnable: { type: boolean, description: runtimed has a task adapter for this provider }
 
+  /v1/agents/{provider}/models:
+    get:
+      operationId: listAgentModels
+      tags: [apps]
+      summary: >
+        Best-effort, read-only model catalog for a "model gateway" provider —
+        calls its standard OpenAI-compatible `GET <base>/models` directly from
+        the control plane (never through a sandbox), injecting the connected
+        API key as a Bearer header when one is stored. Each returned id is
+        "<provider>/<model-id>", passable straight back as a task's `model`.
+        400 for a provider not yet wired to this discovery (e.g. Google,
+        Amazon Bedrock, Azure, GitHub Copilot) — use its own model id directly.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, description: "\"<provider>/<model-id>\"" }
+        "400": { description: Model listing isn't wired for this provider yet }
+        "404": { description: Unknown provider }
+        "502": { description: The upstream provider couldn't be reached or rejected the request }
+        "503": { description: Agent auth not configured }
+
   /v1/agents/{provider}/import:
     post:
       operationId: importAgentCredential

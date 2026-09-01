@@ -205,7 +205,7 @@ Customize how the coding agents behave for the whole instance, from
   submit by the control plane and passed to runtimed).
 
 ### 8. Mobile-first navigation & chat, expanded model providers
-*Release `0.4.1-nordineonline.4`.*
+*Release `0.4.1-nordineonline.4`, dynamic model catalog in `0.4.1-nordineonline.5`.*
 
 - **Sidebar navigation**: the old top bar is now a left-hand rail on desktop
   and a hamburger-opened full-height drawer on mobile — sized and spaced for
@@ -224,6 +224,12 @@ Customize how the coding agents behave for the whole instance, from
   Face, Z.AI, Perplexity, Mistral) are connectable (key stored securely) but
   not yet routed by the credential proxy — see
   [`docs/agent-auth.md`](docs/agent-auth.md) for the full list and status.
+- **Dynamic model catalog**: the chat's model field becomes a live dropdown
+  (`GET /v1/agents/{id}/models`) for every wired gateway that's connected —
+  a plain read-only `GET <base>/models` call the control plane makes directly
+  (standard OpenAI-compatible discovery, no sandbox involved), injecting the
+  stored key as a Bearer header. Falls back to free-text entry when empty or
+  unsupported.
 
 ### Where the fork differs operationally
 
@@ -313,6 +319,7 @@ All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 
 | Version | Highlights |
 | --- | --- |
+| `0.4.1-nordineonline.5` | **Dynamic model catalog** in the chat (`GET /v1/agents/{id}/models`, live dropdown for every connected wired gateway, standard OpenAI-compatible discovery). |
 | `0.4.1-nordineonline.4` | **Mobile-first sidebar & chat** — hamburger drawer nav, Telegram-style headless agent chat (PC + mobile), OpenCode web kept as an Advanced tab; **6 more model providers** wired to the credential proxy (OpenAI, DeepSeek, OpenRouter, Cerebras, NVIDIA, xAI). |
 | `0.4.1-nordineonline.3` | **Custom agent instructions** (Settings → Agent instructions (custom)) — global prompt suffix, persisted, appended to every next task. |
 | `0.4.1-nordineonline.2` | **Real file manager** in the Files tab — upload (multi + drag & drop folders), download file/folder zip, mkdir/rename/delete, image preview. |

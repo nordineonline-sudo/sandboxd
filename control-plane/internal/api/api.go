@@ -273,6 +273,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/settings", s.observe("GET /v1/settings", s.v1GetSettings))
 	mux.HandleFunc("PATCH /v1/settings", s.observe("PATCH /v1/settings", s.v1PatchSettings))
 	mux.HandleFunc("GET /v1/agents", s.observe("GET /v1/agents", s.v1ListAgents))
+	mux.HandleFunc("GET /v1/agents/{provider}/models", s.observe("GET /v1/agents/{provider}/models", s.v1AgentModels))
 	mux.HandleFunc("POST /v1/agents/claude-code/oauth/start", s.observe("POST /v1/agents/claude-code/oauth/start", s.v1AgentOAuthStart))
 	mux.HandleFunc("POST /v1/agents/claude-code/oauth/finish", s.observe("POST /v1/agents/claude-code/oauth/finish", s.v1AgentOAuthFinish))
 	mux.HandleFunc("POST /v1/agents/{provider}/import", s.observe("POST /v1/agents/{provider}/import", s.v1AgentImport))

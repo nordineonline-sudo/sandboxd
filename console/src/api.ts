@@ -314,6 +314,11 @@ export const api = {
   listPresets: () => req<{ presets: Preset[] }>('GET', '/v1/presets').then((r) => r.presets || []),
   getSettings: () => req<Settings>('GET', '/v1/settings'),
   getAgents: () => req<{ providers: Agent[] }>('GET', '/v1/agents').then((r) => r.providers || []),
+  // Best-effort dynamic model catalog for a connected "model gateway"
+  // provider (see docs/agent-auth.md). 400 for a provider not wired to this
+  // discovery yet — callers should fall back to a free-text model field.
+  getAgentModels: (id: string) =>
+    req<{ models: { id: string }[] }>('GET', `/v1/agents/${id}/models`).then((r) => (r.models || []).map((m) => m.id)),
 
   // Connect an agent provider by subscription (paste the credential bundle the
   // owner's `<cli> login` produced) — stored opaquely, never parsed.

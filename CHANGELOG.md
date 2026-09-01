@@ -6,6 +6,22 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.5] — 2026-09-01
+
+* feat(api): new **GET /v1/agents/{provider}/models** — best-effort, read-only
+  model catalog for a connected "model gateway" provider. Calls the standard
+  OpenAI-compatible `GET <base>/models` directly from the control plane (never
+  through a sandbox), injecting the stored API key as a Bearer header;
+  OpenCode Zen, OpenRouter and NVIDIA also answer without one. Returns
+  `"<provider>/<model-id>"`, passable straight back as a task's `model`,
+  by @nordineonline-sudo (fork)
+* feat(console): the chat's model field becomes a live **dropdown** populated
+  from every connected wired gateway (aggregated in parallel), with a "type
+  id…" escape hatch back to free text; falls back automatically when the list
+  is empty or the provider isn't wired yet, by @nordineonline-sudo (fork)
+* docs: openapi.yaml, README section 8, `docs/agent-auth.md`,
+  by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.4] — 2026-09-01
 
 * feat(console): **sidebar navigation** — the top bar becomes a fixed left

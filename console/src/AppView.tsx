@@ -15,6 +15,11 @@ const SandboxTerminal = lazy(() => import('./Terminal').then((m) => ({ default: 
 // as an escape hatch for its full IDE/session features; desktop-only, hidden
 // from the mobile tab bar (see the tabs filter below).
 const TABS = ['agent', 'advanced', 'overview', 'brain', 'readme', 'files', 'git', 'config', 'terminal', 'snapshots', 'activity'] as const
+
+// Credential-only gateway providers wired to the model-catalog discovery
+// endpoint (GET /v1/agents/{id}/models) — kept in sync with
+// modelCatalogUpstreams in control-plane/internal/api/v1_agent_models.go.
+const WIRED_GATEWAY_IDS = new Set(['opencode', 'minimax', 'openai', 'deepseek', 'openrouter', 'cerebras', 'nvidia', 'xai'])
 type Tab = (typeof TABS)[number]
 
 // Per-app agent context (Layer 2). Platform/sandbox conventions come from the
@@ -731,6 +736,9 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
   const [agents, setAgents] = useState<Agent[]>([])
   const [agent, setAgent] = useState('opencode')
   const [model, setModel] = useState('')
+  const [modelOptions, setModelOptions] = useState<string[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
+  const [manualModel, setManualModel] = useState(false)
   const [cont, setCont] = useState(true)
   const [text, setText] = useState('')
   const [history, setHistory] = useState<TaskSummary[]>([])
@@ -747,6 +755,23 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
   const height = heightPx ? `${heightPx}px` : (isMobile ? 'calc(100vh - 190px)' : 'calc(100vh - 190px)')
 
   useEffect(() => { api.getAgents().then(setAgents).catch(() => {}) }, [])
+
+  // Dynamic model catalog: only meaningful for the "opencode" agent, which
+  // routes any connected gateway provider as "<provider>/<model-id>" (see
+  // docs/agent-auth.md). Fetched from every CONNECTED wired gateway in
+  // parallel; a provider that isn't wired to discovery yet (or errors) is
+  // silently skipped — the field falls back to manual entry when the list
+  // ends up empty.
+  useEffect(() => {
+    if (agent !== 'opencode') { setModelOptions([]); return }
+    let alive = true
+    setModelsLoading(true)
+    const gateways = agents.filter((a) => WIRED_GATEWAY_IDS.has(a.id) && (a.id === 'opencode' || a.status === 'connected'))
+    Promise.all(gateways.map((a) => api.getAgentModels(a.id).catch(() => [] as string[])))
+      .then((lists) => { if (alive) setModelOptions(lists.flat()) })
+      .finally(() => { if (alive) setModelsLoading(false) })
+    return () => { alive = false }
+  }, [agent, agents])
   useEffect(() => {
     let alive = true
     api.getAgents()
@@ -841,7 +866,20 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
         <select value={agent} onChange={(e) => { setAgent(e.target.value); setModel('') }} data-testid="task-agent" style={selStyle}>
           {(runnableAgents.length ? runnableAgents : [{ id: 'opencode', label: 'OpenCode' } as Agent]).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
         </select>
-        <Input mono value={model} onChange={(e) => setModel(e.target.value)} placeholder="model (blank = default)" style={{ width: isMobile ? 130 : 190, fontSize: 11.5, padding: '6px 8px' }} data-testid="task-model" />
+        {!manualModel && modelOptions.length > 0 ? (
+          <>
+            <select value={model} onChange={(e) => setModel(e.target.value)} data-testid="task-model" style={{ ...selStyle, width: isMobile ? 140 : 200 }}>
+              <option value="">{modelsLoading ? 'Loading models…' : 'Default model'}</option>
+              {modelOptions.map((id) => <option key={id} value={id}>{id}</option>)}
+            </select>
+            {!isMobile && <a onClick={() => setManualModel(true)} className="dc-hoverink" style={{ fontSize: 11, color: c.link, cursor: 'pointer' }}>type id…</a>}
+          </>
+        ) : (
+          <>
+            <Input mono value={model} onChange={(e) => setModel(e.target.value)} placeholder={modelsLoading ? 'Loading models…' : 'model (blank = default)'} style={{ width: isMobile ? 130 : 190, fontSize: 11.5, padding: '6px 8px' }} data-testid="task-model" />
+            {modelOptions.length > 0 && !isMobile && <a onClick={() => setManualModel(false)} className="dc-hoverink" style={{ fontSize: 11, color: c.link, cursor: 'pointer' }}>choose…</a>}
+          </>
+        )}
         <div style={{ marginLeft: 'auto' }} />
       </div>
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 10px' : 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
