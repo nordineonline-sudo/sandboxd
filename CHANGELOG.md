@@ -6,6 +6,26 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.6] — 2026-09-01
+
+* fix(runtimed): a gateway model routed through the OpenCode agent (e.g.
+  `openrouter/deepseek/deepseek-v4-flash`) was silently rewritten to
+  OpenCode Zen instead of reaching its own connected provider, because the
+  bugfix in `.4`/`.5` lives in `runtimed` — which is compiled into
+  `sandboxd-base` (the SANDBOX image), not `sandboxd-control-plane`. Rebuilding
+  only the control plane never picks it up; `image/build.sh` (or a full
+  `docker compose build`) must run, and existing sandbox CONTAINERS must be
+  recreated (stop/start alone reuses the old container) — documented in
+  `docs/agent-auth.md`. No code change beyond re-confirming the `.4` fix
+  actually reaches deployed sandboxes, by @nordineonline-sudo (fork)
+* feat(console): the chat's single model field is now **two pickers** —
+  a **provider** select (which connected gateway to route through) and a
+  **searchable model combobox** (native `<input list>` + `<datalist>`, since
+  a catalog like OpenRouter's is 400+ entries) fed from that provider's own
+  catalog only (lighter than fetching every connected gateway up front),
+  by @nordineonline-sudo (fork)
+* docs: README section 8 + release-history table, by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.5] — 2026-09-01
 
 * feat(api): new **GET /v1/agents/{provider}/models** — best-effort, read-only

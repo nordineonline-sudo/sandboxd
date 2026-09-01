@@ -735,10 +735,10 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
   const isMobile = useIsMobile()
   const [agents, setAgents] = useState<Agent[]>([])
   const [agent, setAgent] = useState('opencode')
+  const [gatewayProvider, setGatewayProvider] = useState('opencode')
   const [model, setModel] = useState('')
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
-  const [manualModel, setManualModel] = useState(false)
   const [cont, setCont] = useState(true)
   const [text, setText] = useState('')
   const [history, setHistory] = useState<TaskSummary[]>([])
@@ -756,22 +756,25 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
 
   useEffect(() => { api.getAgents().then(setAgents).catch(() => {}) }, [])
 
-  // Dynamic model catalog: only meaningful for the "opencode" agent, which
-  // routes any connected gateway provider as "<provider>/<model-id>" (see
-  // docs/agent-auth.md). Fetched from every CONNECTED wired gateway in
-  // parallel; a provider that isn't wired to discovery yet (or errors) is
-  // silently skipped — the field falls back to manual entry when the list
-  // ends up empty.
+  // Dynamic model catalog: two pickers — "provider" (which connected gateway
+  // to route through) and "model" (a searchable combobox over that provider's
+  // real catalog, since some have 400+ models). Only meaningful for the
+  // "opencode" agent, which routes any connected gateway provider as
+  // "<provider>/<model-id>" (see docs/agent-auth.md); claude-code keeps its
+  // own plain model field (no gateway concept). Fetched ONE provider at a
+  // time (the currently selected one) rather than all of them — much lighter
+  // than pre-fetching every connected gateway's full catalog up front.
+  const connectedGateways = agents.filter((a) => WIRED_GATEWAY_IDS.has(a.id) && (a.id === 'opencode' || a.status === 'connected'))
   useEffect(() => {
     if (agent !== 'opencode') { setModelOptions([]); return }
     let alive = true
     setModelsLoading(true)
-    const gateways = agents.filter((a) => WIRED_GATEWAY_IDS.has(a.id) && (a.id === 'opencode' || a.status === 'connected'))
-    Promise.all(gateways.map((a) => api.getAgentModels(a.id).catch(() => [] as string[])))
-      .then((lists) => { if (alive) setModelOptions(lists.flat()) })
+    setModel('')
+    api.getAgentModels(gatewayProvider).catch(() => [] as string[])
+      .then((list) => { if (alive) setModelOptions(list) })
       .finally(() => { if (alive) setModelsLoading(false) })
     return () => { alive = false }
-  }, [agent, agents])
+  }, [agent, gatewayProvider])
   useEffect(() => {
     let alive = true
     api.getAgents()
@@ -866,19 +869,29 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
         <select value={agent} onChange={(e) => { setAgent(e.target.value); setModel('') }} data-testid="task-agent" style={selStyle}>
           {(runnableAgents.length ? runnableAgents : [{ id: 'opencode', label: 'OpenCode' } as Agent]).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
         </select>
-        {!manualModel && modelOptions.length > 0 ? (
+        {agent === 'opencode' ? (
           <>
-            <select value={model} onChange={(e) => setModel(e.target.value)} data-testid="task-model" style={{ ...selStyle, width: isMobile ? 140 : 200 }}>
-              <option value="">{modelsLoading ? 'Loading models…' : 'Default model'}</option>
-              {modelOptions.map((id) => <option key={id} value={id}>{id}</option>)}
+            <select value={gatewayProvider} onChange={(e) => setGatewayProvider(e.target.value)} title="Model provider" data-testid="task-provider" style={selStyle}>
+              {(connectedGateways.length ? connectedGateways : [{ id: 'opencode', label: 'OpenCode' } as Agent]).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
             </select>
-            {!isMobile && <a onClick={() => setManualModel(true)} className="dc-hoverink" style={{ fontSize: 11, color: c.link, cursor: 'pointer' }}>type id…</a>}
+            {/* Searchable combobox (native datalist) — some gateways (OpenRouter)
+                have 400+ models, so a plain <select> isn't usable; typing
+                filters the list, and any value is still accepted (falls
+                through to a manual model id if it's not in the catalog). */}
+            <input
+              list="agent-chat-models"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder={modelsLoading ? 'Loading models…' : 'Default model — search…'}
+              data-testid="task-model"
+              style={{ ...selStyle, width: isMobile ? 150 : 240 }}
+            />
+            <datalist id="agent-chat-models">
+              {modelOptions.map((id) => <option key={id} value={id} />)}
+            </datalist>
           </>
         ) : (
-          <>
-            <Input mono value={model} onChange={(e) => setModel(e.target.value)} placeholder={modelsLoading ? 'Loading models…' : 'model (blank = default)'} style={{ width: isMobile ? 130 : 190, fontSize: 11.5, padding: '6px 8px' }} data-testid="task-model" />
-            {modelOptions.length > 0 && !isMobile && <a onClick={() => setManualModel(false)} className="dc-hoverink" style={{ fontSize: 11, color: c.link, cursor: 'pointer' }}>choose…</a>}
-          </>
+          <Input mono value={model} onChange={(e) => setModel(e.target.value)} placeholder="model (blank = default)" style={{ width: isMobile ? 130 : 190, fontSize: 11.5, padding: '6px 8px' }} data-testid="task-model" />
         )}
         <div style={{ marginLeft: 'auto' }} />
       </div>

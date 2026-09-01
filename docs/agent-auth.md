@@ -196,6 +196,27 @@ The agent process env is scrubbed of secret-shaped variables (`*_KEY`,
 
 Non-secret config (`PATH`, `HOME`, `LANG`, `*_MODEL`, `*_BASE_URL`, …) is kept.
 
+## Deployment gotcha: `runtimed` lives in the SANDBOX image
+
+The routing logic above (`opencodeUpstream`, `writeOpencodeProxyConfig`,
+`agentEnv`) is compiled into the **`runtimed`** binary — which ships inside
+**`sandboxd-base`** (the sandbox image), not `sandboxd-control-plane`. A change
+to `cmd/runtimed/*.go` only takes effect once:
+
+1. `sandboxd-base` is rebuilt (`docker compose build`, or `image/build.sh`
+   directly — the control plane's own image rebuilding does NOT rebuild it).
+2. Every existing sandbox **container** is recreated from the new image —
+   `stop`/`start` alone reuses the same (old) container. Recreate via
+   `DELETE /v1/sandboxes/{id}` (keeps the workspace) then
+   `POST /v1/apps/{id}/sandbox` (or the console's "Create sandbox"), or wait
+   for a future boot that already targets the new image tag.
+
+Symptom when this is missed: a fix behaves as if it was never applied (e.g. a
+gateway-provider model silently falls back to a different upstream) even
+though `sandboxd-control-plane`'s own logic (API routes, Settings, agentauth)
+is up to date — because the actual routing decision is made **inside** the
+stale sandbox, not by the control plane.
+
 ## Agent context — platform prompt + per-app guide
 
 So an agent understands its environment and doesn't break things, two context
