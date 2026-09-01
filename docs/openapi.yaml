@@ -64,6 +64,13 @@ paths:
                         Per-agent default model id (agent -> model). Merges into the
                         stored map; an empty value clears that agent's default. Only
                         runnable agents are accepted.
+                    system_prompt:
+                      type: string
+                      description: >
+                        Optional CUSTOM agent-instructions suffix, appended to every
+                        next task after the embedded platform briefing (rendered with
+                        the same per-sandbox placeholders). An empty string clears it;
+                        max 8192 chars. Read back as agents.custom_system_prompt.
       responses:
         "200":
           description: Updated settings.

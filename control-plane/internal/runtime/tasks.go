@@ -49,6 +49,10 @@ type StartTaskRequest struct {
 	// nil (omitted) = the default, which is to continue when the sandbox already
 	// has a prior session and start fresh otherwise; true/false force the choice.
 	Continue *bool `json:"continue,omitempty"`
+	// AgentSystemPrompt, when non-empty, is appended (after a delimiter) to the
+	// embedded platform briefing for THIS task — the operator's custom agent
+	// instructions, read from the live settings at submit time.
+	AgentSystemPrompt string `json:"agent_system_prompt,omitempty"`
 }
 
 // Event is one task progress event. Data is type-specific JSON.

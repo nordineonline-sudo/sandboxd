@@ -82,6 +82,10 @@ type v1SettingsAgents struct {
 	// only). Rendered with default port/health for display; runtimed renders it
 	// with each sandbox's real values at task time. Single source: internal/agentprompt.
 	SystemPrompt string `json:"system_prompt,omitempty"`
+	// CustomSystemPrompt is the operator's optional custom suffix, saved from
+	// Settings → Agent instructions (custom). "" = disabled; rendered after
+	// the embedded platform briefing at the next task submit.
+	CustomSystemPrompt string `json:"custom_system_prompt,omitempty"`
 	// DefaultModels maps an agent id to its operator-set default model id, used
 	// when a task doesn't specify one. Editable via PATCH. Empty map when unset.
 	DefaultModels map[string]string `json:"default_models"`
@@ -119,7 +123,7 @@ func (s *Server) v1GetSettings(w http.ResponseWriter, _ *http.Request) {
 		Runtime:   v1SettingsRuntime{StorageMode: storageMode, BaseImage: s.Image},
 		Lifecycle: s.lifecycleView(),
 		Egress:    v1SettingsEgress{Mode: egressMode},
-		Agents:    v1SettingsAgents{Providers: s.Instance.AgentProviders, SystemPrompt: agentprompt.Render(agentprompt.Vars{}), DefaultModels: s.agentDefaultModels()},
+		Agents:    v1SettingsAgents{Providers: s.Instance.AgentProviders, SystemPrompt: agentprompt.Render(agentprompt.Vars{}), DefaultModels: s.agentDefaultModels(), CustomSystemPrompt: s.customSystemPrompt()},
 		Presets:   presets,
 		Capabilities: map[string]bool{
 			"snapshots":      s.Snapshot != nil,
@@ -134,6 +138,7 @@ func (s *Server) v1GetSettings(w http.ResponseWriter, _ *http.Request) {
 			"lifecycle.idle_threshold_seconds",
 			"lifecycle.keepalive_max_seconds",
 			"agents.default_models",
+			"agents.system_prompt",
 		}
 	}
 	if s.Update != nil {
@@ -189,11 +194,15 @@ type v1SettingsPatch struct {
 		// DefaultModels merges into the stored map: a non-empty value sets that
 		// agent's default model, an empty value clears it. Other agents untouched.
 		DefaultModels map[string]string `json:"default_models"`
+		// SystemPrompt — optional custom agent instructions suffix. A non-nil
+		// value REPLACES the whole custom prompt (set/clear: "" clears it).
+		SystemPrompt *string `json:"system_prompt"`
 	} `json:"agents"`
 }
 
 // maxAgentDefaultModels bounds how many per-agent defaults can be stored.
 const maxAgentDefaultModels = 32
+const maxAgentSystemPrompt = 8192 // agent system prompt cap (8 KiB)
 
 // v1PatchSettings — PATCH /v1/settings. Edits ONLY the lifecycle tunables; it
 // persists them, hot-applies via the shared Live config, and audits the change.
@@ -269,12 +278,22 @@ func (s *Server) v1PatchSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		next.DefaultModels = merged
 	}
-
+	if req.Agents != nil && req.Agents.SystemPrompt != nil {
+		target = "agents.system_prompt"
+		p := strings.TrimSpace(*req.Agents.SystemPrompt)
+		if len(p) > maxAgentSystemPrompt {
+			writeV1Err(w, http.StatusBadRequest, "invalid_request",
+				fmt.Sprintf("agent system prompt too long (max %d chars)", maxAgentSystemPrompt))
+			return
+		}
+		next.AgentSystemPrompt = p
+	}
 	if err := s.Store.SaveInstanceSettings(r.Context(), store.InstanceSettings{
 		IdleReapEnabled:      next.IdleEnabled,
 		IdleThresholdSeconds: next.IdleThresholdSeconds,
 		KeepaliveMaxSeconds:  next.KeepaliveMaxSeconds,
 		AgentDefaultModels:   next.DefaultModels,
+		AgentSystemPrompt:    next.AgentSystemPrompt,
 	}); err != nil {
 		writeV1Err(w, http.StatusInternalServerError, "internal", err.Error())
 		return
@@ -282,6 +301,15 @@ func (s *Server) v1PatchSettings(w http.ResponseWriter, r *http.Request) {
 	s.Live.Set(next) // hot-apply (reaper + keepalive + task-submit read this live)
 	s.auditAction(r, audit.Entry{Action: "settings.update", Target: target})
 	s.v1GetSettings(w, r) // echo the updated settings
+}
+
+// customSystemPrompt returns the operator's optional custom agent-instruction
+// suffix ("" when disabled), hot-read at task submit from the live config.
+func (s *Server) customSystemPrompt() string {
+	if s.Live != nil {
+		return s.Live.SystemPrompt()
+	}
+	return ""
 }
 
 // agentDefaultModels returns the live per-agent default model map (never nil).

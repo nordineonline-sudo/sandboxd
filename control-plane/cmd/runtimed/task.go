@@ -29,15 +29,16 @@ type eventSink func(evType string, data any)
 
 // task is one coding-agent run. One at a time per sandbox.
 type task struct {
-	id        string
-	prompt    string
-	agentName string
-	model     string
-	cont      bool // continue the sandbox's most recent agent session
-	env       map[string]string
-	timeout   time.Duration
-	dir       string // .runtimed/tasks/<id>
-	createdAt time.Time
+	id                string
+	prompt            string
+	agentName         string
+	model             string
+	cont              bool // continue the sandbox's most recent agent session
+	env               map[string]string
+	agentSystemPrompt string
+	timeout           time.Duration
+	dir               string // .runtimed/tasks/<id>
+	createdAt         time.Time
 
 	mu        sync.Mutex
 	startedAt time.Time
@@ -75,7 +76,7 @@ func newTask(req runtime.StartTaskRequest, tasksRoot string) (*task, error) {
 		timeout = time.Duration(req.TimeoutS) * time.Second
 	}
 	return &task{
-		id: req.TaskID, prompt: req.Prompt, agentName: req.Agent, model: req.Model, cont: cont, env: req.Env,
+		id: req.TaskID, prompt: req.Prompt, agentName: req.Agent, model: req.Model, cont: cont, env: req.Env, agentSystemPrompt: req.AgentSystemPrompt,
 		timeout: timeout, dir: dir, createdAt: time.Now().UTC(),
 		updatedCh: make(chan struct{}), phase: "queued", eventsW: f,
 	}, nil
@@ -243,10 +244,19 @@ func (a *app) runTask(t *task) {
 		defer rawLog.Close()
 	}
 	// Render the platform briefing with THIS sandbox's real values (no hard-coded
-	// loopback address or port) and hand it to the adapter.
+	// loopback address or port) and hand it to the adapter. Append the
+	// operator's custom instructions (if any) AFTER a delimiter, rendered with
+	// the same per-sandbox placeholders, so the platform guardrails stay first
+	// and the custom behaviour rides closest to the task.
 	sysPrompt := agentprompt.Render(agentprompt.Vars{
 		AppDir: a.appDir, Port: a.previewPort, HealthPath: a.webHealthPath,
 	})
+	if custom := t.agentSystemPrompt; custom != "" {
+		custom = agentprompt.Render(agentprompt.Vars{
+			AppDir: a.appDir, Port: a.previewPort, HealthPath: a.webHealthPath,
+		})
+		sysPrompt = sysPrompt + "\n\n---\n\n# Custom agent instructions\n\n" + custom
+	}
 	finalMsg, usage, agentErr := ag.run(ctx, agentSpec{
 		workDir: a.appDir, prompt: t.prompt, model: t.model, env: t.env, rawLog: rl,
 		systemPrompt: sysPrompt, cont: t.cont,

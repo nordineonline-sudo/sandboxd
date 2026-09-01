@@ -17,6 +17,7 @@ type Snapshot struct {
 	IdleThresholdSeconds int
 	KeepaliveMaxSeconds  int
 	DefaultModels        map[string]string // agent id -> default model id
+	AgentSystemPrompt    string             // optional custom suffix appended to every task
 }
 
 // Live is the shared, mutable holder. Construct with New; read via the
@@ -42,10 +43,18 @@ func (l *Live) Set(s Snapshot) {
 
 // DefaultModel returns the configured default model id for an agent, or "" when
 // none is set. Hot-read at task submit.
-func (l *Live) DefaultModel(agent string) string {
+func(l *Live) DefaultModel(agent string) string {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 	return l.snap.DefaultModels[agent]
+}
+
+// SystemPrompt returns the optional custom system-prompt suffix ("" when
+// none is set). Hot-read at task submit.
+func (l *Live) SystemPrompt() string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.snap.AgentSystemPrompt
 }
 
 // cloneSnap deep-copies the map so a stored Snapshot never shares mutable state

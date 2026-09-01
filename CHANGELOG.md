@@ -6,6 +6,18 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.3] — 2026-09-01
+
+* feat(settings): custom global **Agent instructions** — saved from
+  Settings → Agent instructions (custom), persisted per instance, appended
+  after the embedded platform briefing (delimiter + rendered with the same
+  per-sandbox placeholders) at every task submit, by @nordineonline-sudo (fork)
+* feat(api): GET /v1/settings exposes `agents.custom_system_prompt`;
+  PATCH /v1/settings accepts `agents.system_prompt` (8 KiB cap, set/clear,
+  audited), applied to the NEXT tasks only, by @nordineonline-sudo (fork)
+* feat(console): new editable card in Settings with textarea + Save +
+  Revert to default, by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.2] — 2026-09-01
 
 * feat(api): the Files tab is now a real file manager — new host-side

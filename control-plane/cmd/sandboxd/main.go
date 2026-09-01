@@ -309,8 +309,9 @@ func main() {
 			IdleThresholdSeconds: persisted.IdleThresholdSeconds,
 			KeepaliveMaxSeconds:  persisted.KeepaliveMaxSeconds,
 			DefaultModels:        persisted.AgentDefaultModels,
+			AgentSystemPrompt:    persisted.AgentSystemPrompt,
 		})
-		log.Info("instance settings: loaded persisted lifecycle tunables + agent default models")
+		log.Info("instance settings: loaded persisted lifecycle tunables + agent defaults + system prompt")
 	}
 
 	inflight := activity.NewInflightExec()

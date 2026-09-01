@@ -11,7 +11,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.2-00ADD8"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.3-00ADD8"></a>
 </p>
 
 ---
@@ -189,6 +189,21 @@ editor only):
   Every path is confined to the app dir and symlink-checked component by
   component (CWE-59); uploads are atomic, size-capped and audited.
 
+### 7. Custom agent instructions (global)
+*Release `0.4.1-nordineonline.3`.*
+
+Customize how the coding agents behave for the whole instance, from
+**Settings → Agent instructions (custom)** — no rebuild, no redeploy:
+
+- A textarea saving an optional prompt suffix, persisted per instance
+  (`PATCH /v1/settings` accepts `agents.system_prompt`; 8&nbsp;KiB cap).
+- It is appended **after** the embedded platform briefing with a delimiter —
+  the built-in guardrails stay intact — and rendered with the same per-sandbox
+  placeholders (`{{APP_DIR}}`, `{{PORT}}`, `{{HEALTH_PATH}}`,
+  `{{LOCAL_URL}}`).
+- Applies to the **next** tasks on every sandbox (live settings, read at task
+  submit by the control plane and passed to runtimed).
+
 ### Where the fork differs operationally
 
 - **Versioning** is pinned for the deployment: images are tagged
@@ -274,6 +289,14 @@ script or `docker run` is simpler.
 
 All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 `0.4.1-nordineonline.<n>`.
+
+| Version | Highlights |
+| --- | --- |
+| `0.4.1-nordineonline.3` | **Custom agent instructions** (Settings → Agent instructions (custom)) — global prompt suffix, persisted, appended to every next task. |
+| `0.4.1-nordineonline.2` | **Real file manager** in the Files tab — upload (multi + drag & drop folders), download file/folder zip, mkdir/rename/delete, image preview. |
+| `0.4.1-nordineonline.1` | **Dedicated agent tab** (first, default, full width) + **README tab** (view/edit). |
+| `0.4.0-nordineonline.2` | Production release: pinned tags, README rewrite, OpenCode-web fix on wake/self-heal. |
+| `0.4.0-nordineonline.1` | Embedded **OpenCode web** console, mobile responsiveness, cross-device sessions. |
 
 ## License
 

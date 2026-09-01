@@ -51,12 +51,14 @@ export function SettingsView({ onError, toast }: { onError: (m: string) => void;
   const [keyName, setKeyName] = useState('')
   const [newKey, setNewKey] = useState('')
   const [models, setModels] = useState<Record<string, string>>({})
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [customBusy, setCustomBusy] = useState(false)
 
   const loadAgents = useCallback(() => api.getAgents().then(setAgents).catch(() => {}), [])
   const loadCreds = useCallback(() => api.listGitCredentials().then(setCreds).catch(() => {}), [])
   const loadKeys = useCallback(() => api.listApiKeys().then(setKeys).catch(() => {}), [])
   useEffect(() => {
-    api.getSettings().then((d) => { setS(d); setIdle(d.lifecycle.idle_reap_enabled); setIdleSec(d.lifecycle.idle_threshold_seconds); setKeepSec(d.lifecycle.keepalive_max_seconds); setModels(d.agents.default_models || {}) }).catch((e) => onError((e as Error).message))
+    api.getSettings().then((d) => { setS(d); setIdle(d.lifecycle.idle_reap_enabled); setIdleSec(d.lifecycle.idle_threshold_seconds); setKeepSec(d.lifecycle.keepalive_max_seconds); setModels(d.agents.default_models || {}); setCustomPrompt(d.agents.custom_system_prompt || '') }).catch((e) => onError((e as Error).message))
     loadAgents(); loadCreds(); loadKeys()
   }, [onError, loadAgents, loadCreds, loadKeys])
 
@@ -71,6 +73,8 @@ export function SettingsView({ onError, toast }: { onError: (m: string) => void;
   const importCred = async (id: string) => { const v = window.prompt(`Paste the credential (from your ${id} login):`); if (v) try { await api.importAgentCredential(id, v); toast('Connected'); loadAgents() } catch (e) { onError((e as Error).message) } }
   const saveLifecycle = async () => { try { await api.patchSettings({ lifecycle: { idle_reap_enabled: idle, idle_threshold_seconds: idleSec, keepalive_max_seconds: keepSec } }); toast('Lifecycle saved') } catch (e) { onError((e as Error).message) } }
   const saveModels = async () => { try { const d = await api.patchSettings({ agents: { default_models: models } }); setModels(d.agents.default_models || {}); toast('Default models saved') } catch (e) { onError((e as Error).message) } }
+  const saveCustomPrompt = async () => { setCustomBusy(true); try { const d = await api.patchSettings({ agents: { system_prompt: customPrompt } }); setCustomPrompt(d.agents.custom_system_prompt || ''); toast('Agent instructions saved — applies to the next task') } catch (e) { onError((e as Error).message) } finally { setCustomBusy(false) } }
+  const revertCustomPrompt = async () => { if (!window.confirm('Clear the custom agent instructions? The built-in platform briefing will be used for all agents.')) return; setCustomBusy(true); try { const d = await api.patchSettings({ agents: { system_prompt: '' } }); setCustomPrompt(''); toast('Reverted to the default briefing') } catch (e) { onError((e as Error).message) } finally { setCustomBusy(false) } }
   const addCred = async () => { if (!gc.name || !gc.host || !gc.token) return; try { await api.createGitCredential(gc); setGc({ name: '', host: '', username: '', token: '' }); toast('Credential added'); loadCreds() } catch (e) { onError((e as Error).message) } }
   const changePw = async () => { if (!curPw || !newPw) return; try { await api.changePassword({ current_password: curPw, new_password: newPw }); setCurPw(''); setNewPw(''); toast('Password changed') } catch (e) { onError((e as Error).message) } }
   const signOutEverywhere = async () => { try { await api.logoutEverywhere(); location.reload() } catch (e) { onError((e as Error).message) } }
@@ -269,6 +273,30 @@ export function SettingsView({ onError, toast }: { onError: (m: string) => void;
           )}
         </Card>
       )}
+      <Card style={{ padding: 16 }} data-testid="settings-custom-prompt">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <H>Agent instructions (custom)</H>
+          <Src kind="editable" />
+        </div>
+        <div style={{ color: c.muted, fontSize: 12.5, margin: '6px 0 10px', lineHeight: 1.55 }}>
+          Optional instructions appended to <b>every</b> agent task, after the built-in platform briefing, for all sandboxes. Saved to this instance and applied to the <b>next</b> tasks. Placeholders allowed: <span style={{ ...mono, fontSize: 11 }}>{'{{APP_DIR}}'}</span>, <span style={{ ...mono, fontSize: 11 }}>{'{{PORT}}'}</span>, <span style={{ ...mono, fontSize: 11 }}>{'{{HEALTH_PATH}}'}</span>, <span style={{ ...mono, fontSize: 11 }}>{'{{LOCAL_URL}}'}</span>.
+        </div>
+        <textarea
+          value={customPrompt}
+          onChange={(e) => setCustomPrompt(e.target.value)}
+          spellCheck={false}
+          placeholder={'e.g. Always respond in French. Prefer TypeScript. Explain your changes briefly.'}
+          data-testid="custom-prompt-input"
+          style={{ width: '100%', minHeight: 110, resize: 'vertical', background: c.bg, color: c.fg, border: `1px solid ${c.border}`, borderRadius: 7, padding: '10px 12px', ...mono, fontSize: 12, lineHeight: 1.55 }}
+        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, flexWrap: 'wrap' }}>
+          <Btn variant="primary" onClick={saveCustomPrompt} disabled={customBusy} data-testid="custom-prompt-save">{customBusy ? 'Saving…' : 'Save'}</Btn>
+          {customPrompt.trim() !== '' && (
+            <Btn onClick={revertCustomPrompt} disabled={customBusy} data-testid="custom-prompt-revert">Revert to default</Btn>
+          )}
+          <span style={{ fontSize: 11, color: c.muted2 }}>{customPrompt.length} chars (max 8192)</span>
+        </div>
+      </Card>
     </div>
   )
 }
