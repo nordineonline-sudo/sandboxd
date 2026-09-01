@@ -11,7 +11,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.1-00ADD8"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.2-00ADD8"></a>
 </p>
 
 ---
@@ -168,6 +168,26 @@ had real sessions. This fork fixes that end-to-end:
   **"Create README.md"** button that seeds a template.
 - **E2E-friendly markup.** `Card`/`Btn` now forward `data-testid`, so browser
   tests can target the agent and README tabs reliably.
+
+### 6. Real file manager in the Files tab
+*Release `0.4.1-nordineonline.2`.*
+
+The Files tab is a full workspace file manager now (it used to be tree +
+editor only):
+
+- **Upload** one or many files — via the button **or drag & drop**, folders
+  included (dropped folders are walked and uploaded with their tree). New
+  folders created by an upload expand automatically.
+- **Download** any file individually, any **folder as a zip**, or the whole
+  workspace (the pre-existing export).
+- **Create** files and folders, **rename** (in place), **delete** (files, or
+  folders recursively) — with confirmations where it hurts.
+- **Preview images inline** (png / jpg / gif / webp / svg); text files keep
+  the syntax-highlighted editor; binary or oversized files offer a download.
+- Server side: six new host-side endpoints (download / archive / upload /
+  mkdir / delete / rename) documented in [`docs/openapi.yaml`](docs/openapi.yaml).
+  Every path is confined to the app dir and symlink-checked component by
+  component (CWE-59); uploads are atomic, size-capped and audited.
 
 ### Where the fork differs operationally
 

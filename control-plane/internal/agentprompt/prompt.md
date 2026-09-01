@@ -56,5 +56,3 @@ memory, not code: never commit it (it is kept out of git via
 
 Framework, source layout, and how-to-run details for THIS app are in
 `{{APP_DIR}}/AGENTS.md` when present — read it first.
-
-My Name is nordine

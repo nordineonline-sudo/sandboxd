@@ -6,6 +6,26 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.2] — 2026-09-01
+
+* feat(api): the Files tab is now a real file manager — new host-side
+  endpoints: single-file **download** (binary-safe, no size cap), **directory
+  zip** archive, multi-file **upload** (multipart; part filenames may carry
+  relative paths so dropped folders land intact; 25 MiB total cap),
+  **mkdir**, **delete** (file or recursive) and in-place **rename**, by
+  @nordineonline-sudo (fork)
+* feat(console): Files tab rebuilt — per-node download/rename/delete actions,
+  create file/folder, multi-file + drag & drop upload (files AND folders),
+  inline image preview (png/jpg/gif/webp/svg) and a download CTA for
+  binary/oversized files, by @nordineonline-sudo (fork)
+* security: all new paths are lexically confined to the app dir AND checked
+  component-by-component for symlinks (CWE-59); uploads are atomic, never
+  overwrite a symlink and are chown'd to the workspace owner; mutations are
+  audited, by @nordineonline-sudo (fork)
+* fix(api): `/files/content` serves image extensions with their real media
+  type plus a sandboxed CSP, so previews render without relaxing headers, by
+  @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.1] — 2026-08-20
 
 * feat(console): reorganize the app tabs — a dedicated **agent** tab (first,
