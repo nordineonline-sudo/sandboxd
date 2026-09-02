@@ -55,7 +55,7 @@ services:
         # upgrade.sh & install.sh export these from `git describe`; default dev.
         VERSION: ${SANDBOXD_VERSION:-dev}
         GIT_COMMIT: ${SANDBOXD_GIT_COMMIT:-unknown}
-    image: sandboxd-control-plane:0.4.1-nordineonline.8
+    image: sandboxd-control-plane:0.4.1-nordineonline.9
     restart: unless-stopped
     userns_mode: "host"  # see traefik above
     # Reachable on the internal network as http://sandboxd:9000. The API
@@ -73,7 +73,7 @@ services:
     environment:
       # --- core ---
       PREVIEW_DOMAIN: ${PREVIEW_DOMAIN:-localhost}
-      SANDBOXD_IMAGE: ${SANDBOXD_IMAGE:-sandboxd-base:0.4.1-nordineonline.8}
+      SANDBOXD_IMAGE: ${SANDBOXD_IMAGE:-sandboxd-base:0.4.1-nordineonline.9}
       SANDBOXD_NETWORK: ${SANDBOXD_NETWORK:-sandboxd_net}
       SANDBOXD_USERNS: ${SANDBOXD_USERNS:-host}
       # Default coding agent for tasks that don't specify one. Explicit
@@ -130,7 +130,7 @@ services:
     profiles: [console]
     build:
       context: ./console
-    image: sandboxd-console:0.4.1-nordineonline.8
+    image: sandboxd-console:0.4.1-nordineonline.9
     restart: unless-stopped
     depends_on:
       - sandboxd

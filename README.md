@@ -11,7 +11,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.8-00ADD8"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.9-00ADD8"></a>
 </p>
 
 ---
@@ -239,6 +239,7 @@ Customize how the coding agents behave for the whole instance, from
 
 | Version | What landed |
 | --- | --- |
+| `.9` | **Sidebar overhaul** — Brain/App Store/Feedback removed, GitHub points to the fork, app list with live status (running first) + a per-app submenu (Start/Stop, Open, all tabs); removed the top-right search + ⌘K palette, the in-app tab bar and the Deploy button; preview **QR-code** popup. |
 | `.4` | Sidebar + headless chat + 6 wired providers |
 | `.5` | Dynamic model dropdown (single combined list) |
 | `.6` | Split into provider + model pickers; **fixed** a routing bug where a gateway model silently fell back to Zen (root cause: `runtimed` ships in `sandboxd-base`, not the control plane — rebuilding only the latter never applied the fix) |
@@ -332,6 +333,7 @@ All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 
 | Version | Highlights |
 | --- | --- |
+| `0.4.1-nordineonline.9` | **Sidebar overhaul** — removed Brain / App Store / Feedback, GitHub links to the fork, app list with live status (running first) + per-app submenu (Start/Stop, Open, all tabs); removed the top-right search + ⌘K palette, the in-app tab bar and the Deploy button; preview QR-code popup. |
 | `0.4.1-nordineonline.8` | Removed the floating "?" badge ("Ask sandboxd" helper); added `chat-context.md` as the hand-off doc for AI agents. |
 | `0.4.1-nordineonline.7` | **12 model providers wired**, redundant agent selector removed, **Stop button**, provider/model choice persistence, OpenCode tab (renamed from "Advanced") enabled on mobile. |
 | `0.4.1-nordineonline.5`–`.6` | **Dynamic model catalog** in the chat (`GET /v1/agents/{id}/models`), split into provider + model pickers, a routing bugfix (see section 8 for the root cause and lesson learned). |

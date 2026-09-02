@@ -1,7 +1,7 @@
 import { Fragment, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import QRCode from 'qrcode'
 import { api, App as TApp, Sandbox, Process, ConfigItem, Snapshot, AppEvent, GitStatus, GitFile, FileEntry, RuntimeSuggestion, TaskSummary, Agent } from './api'
 import { c, font, mono, Card, H, Btn, Pill, StatusPill, statusTone, Input, tab, useIsMobile } from './design/kit'
-import { DeployModal } from './DeployModal'
 import { IS_DEMO } from './demo'
 import { slugKey, splitInline } from './brain'
 
@@ -69,19 +69,28 @@ async function ensureAppAgentsMd(sandboxId: string, app: TApp | null, pick: Runt
 }
 
 export function AppView({
-  appId, initialTab, onError, toast, goApps, goSettings, apps, onOpenApp,
-}: { appId: string; initialTab?: string; onError: (m: string) => void; toast: (m: string) => void; goApps: () => void; goSettings: () => void; apps?: TApp[]; onOpenApp?: (id: string, tab?: string) => void }) {
+  appId, tab, onTabChange, onError, toast, goApps, goSettings, apps, onOpenApp,
+}: { appId: string; tab?: string; onTabChange?: (t: string) => void; onError: (m: string) => void; toast: (m: string) => void; goApps: () => void; goSettings: () => void; apps?: TApp[]; onOpenApp?: (id: string, tab?: string) => void }) {
   const [app, setApp] = useState<TApp | null>(null)
   const [sb, setSb] = useState<Sandbox | null>(null)
-  const [tabName, setTabName] = useState<Tab>((initialTab as Tab) || 'agent')
+  const [tabName, setTabName] = useState<Tab>((tab as Tab) || 'agent')
   const [busy, setBusy] = useState(false)
   const [menu, setMenu] = useState(false)
   const [applied, setApplied] = useState<{ preset: string } | null>(null) // auto-applied runtime banner (Undo)
-  const [deployOpen, setDeployOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
   const isMobile = useIsMobile()
   const autoRef = useRef<string>('') // guards one auto-apply attempt per sandbox
   const tabContentRef = useRef<HTMLDivElement>(null)
   const [agentHeightPx, setAgentHeightPx] = useState<number | null>(null)
+
+  // Controlled tab: the sidebar drives which tab is shown. Keep local
+  // tabName in sync with the `tab` prop (e.g. when the user clicks a tab in
+  // the sidebar while this app is already mounted).
+  useEffect(() => {
+    if (tab && tab !== tabName && (TABS as readonly string[]).includes(tab)) setTabName(tab as Tab)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab])
+  const setTab = (t: Tab) => { setTabName(t); onTabChange?.(t) }
 
   const refresh = useCallback(async () => {
     try {
@@ -197,15 +206,11 @@ export function AppView({
           {sb && status === 'stopped' && <Btn disabled={busy} onClick={() => act(() => api.startSandbox(sb.id))}>Start</Btn>}
           {sb && status === 'running' && <Btn disabled={busy} onClick={() => act(() => api.stopSandbox(sb.id))}>Stop</Btn>}
           {previewURL && status === 'running' && <Btn onClick={() => window.open(previewURL, '_blank')}>Open ↗</Btn>}
-          <button onClick={() => setDeployOpen(true)} data-testid="deploy-btn" className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 6, border: 'none', borderRadius: 7, padding: '6px 13px', cursor: 'pointer', background: 'linear-gradient(135deg,#3f3f46,#18181b)', color: '#fff', fontFamily: font.sans, fontSize: 12.5, fontWeight: 600 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6Z" opacity=".35" /><path d="m9 12 2 2 4-4" /></svg>
-            Deploy
-          </button>
           <Btn onClick={() => setMenu((m) => !m)} style={{ letterSpacing: 1 }}>⋯</Btn>
           {menu && (
             <Card style={{ position: 'absolute', top: 38, right: 0, padding: 4, minWidth: 180, zIndex: 40, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }}>
               {sb && <MenuItem onClick={() => { setMenu(false); snapshot() }}>Take snapshot</MenuItem>}
-              {previewURL && <MenuItem onClick={() => { navigator.clipboard?.writeText(previewURL); toast('Preview URL copied'); setMenu(false) }}>Copy preview URL</MenuItem>}
+              {previewURL && <MenuItem onClick={() => { setMenu(false); setQrOpen(true) }}>QRCode URL</MenuItem>}
               <div style={{ height: 1, background: c.panel2, margin: '4px 0' }} />
               <MenuItem danger onClick={async () => { setMenu(false); if (!window.confirm(`Delete “${app.name}” and everything it owns? This cannot be undone.`)) return; try { await api.deleteApp(appId); toast('App deleted'); goApps() } catch (e) { onError((e as Error).message) } }}>Delete app…</MenuItem>
             </Card>
@@ -221,17 +226,6 @@ export function AppView({
           <a onClick={() => setApplied(null)} className="dc-hoverink" style={{ color: c.muted2, cursor: 'pointer' }}>Dismiss</a>
         </div>
       )}
-
-      {/* tabs — "advanced" (labelled "OpenCode": the native OpenCode web
-          session, with its interactive permission prompts/multiple-choice
-          questions that the headless Agent chat can't do) */}
-      <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${c.border}`, marginBottom: 24, overflowX: 'auto' }}>
-        {TABS.map((t) => (
-          <div key={t} data-testid={`tab-${t}`} className="dc-hoverink" onClick={() => setTabName(t)} style={{ ...tab(tabName === t), textTransform: t === 'advanced' ? 'none' : 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {t === 'advanced' ? 'OpenCode' : t}{tabBadge[t] && <span style={{ ...mono, marginLeft: 6, fontSize: 10, color: c.muted2 }}>{tabBadge[t]}</span>}
-          </div>
-        ))}
-      </div>
 
       <div ref={tabContentRef}>
       {tabName === 'agent' && <AgentChat sb={sb} onError={onError} toast={toast} refresh={refresh} heightPx={agentHeightPx} />}
@@ -250,7 +244,7 @@ export function AppView({
       {tabName === 'snapshots' && <SnapshotsTab appId={appId} appName={app.name} onError={onError} toast={toast} refresh={refresh} sb={sb} />}
       {tabName === 'activity' && <ActivityTab appId={appId} onError={onError} />}
       </div>
-      {deployOpen && <DeployModal appName={app.name} close={() => setDeployOpen(false)} />}
+      {qrOpen && previewURL && <QRCodeModal url={previewURL} close={() => setQrOpen(false)} />}
     </div>
   )
 }
@@ -1524,5 +1518,33 @@ function ActivityTab({ appId, onError }: { appId: string; onError: (m: string) =
         </div>
       ))}
     </Card>
+  )
+}
+
+// ---------- QR CODE MODAL (preview URL + scannable QR) ----------
+function QRCodeModal({ url, close }: { url: string; close: () => void }) {
+  const [dataUrl, setDataUrl] = useState('')
+  useEffect(() => {
+    let alive = true
+    QRCode.toDataURL(url, { width: 240, margin: 2, errorCorrectionLevel: 'M' })
+      .then((d) => { if (alive) setDataUrl(d) })
+      .catch(() => { if (alive) setDataUrl('') })
+    return () => { alive = false }
+  }, [url])
+  return (
+    <div onClick={close} style={{ position: 'fixed', inset: 0, background: 'rgba(9,9,11,.4)', zIndex: 90, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: c.panel, border: `1px solid ${c.border}`, borderRadius: 12, padding: 20, width: 320, maxWidth: '90vw', textAlign: 'center', boxShadow: '0 16px 48px rgba(0,0,0,.2)' }} data-testid="qr-modal">
+        <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>Preview URL</div>
+        <div style={{ fontSize: 11, color: c.muted2, marginBottom: 12 }}>Scan to open this app on any device.</div>
+        {dataUrl
+          ? <img src={dataUrl} alt="QR code" style={{ width: 220, height: 220, border: `1px solid ${c.border}`, borderRadius: 8 }} data-testid="qr-img" />
+          : <div style={{ width: 220, height: 220, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.muted2, fontSize: 12, border: `1px solid ${c.border}`, borderRadius: 8 }}>Generating…</div>}
+        <div style={{ ...mono, fontSize: 11, color: c.fg2, wordBreak: 'break-all', margin: '12px 0', background: c.panel2, borderRadius: 6, padding: '8px 10px' }}>{url}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn variant="primary" style={{ flex: 1 }} onClick={() => { navigator.clipboard?.writeText(url); }}>Copy URL</Btn>
+          <Btn style={{ flex: 1 }} onClick={close}>Close</Btn>
+        </div>
+      </div>
+    </div>
   )
 }

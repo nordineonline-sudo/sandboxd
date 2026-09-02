@@ -32,7 +32,7 @@ image/
 ## Building
 
 ```bash
-bash image/build.sh                       # builds sandboxd-base:0.4.1-nordineonline.8 (the default tag)
+bash image/build.sh                       # builds sandboxd-base:0.4.1-nordineonline.9 (the default tag)
 bash image/build.sh 0.3.1                 # a different tag
 SANDBOXD_IMAGE=my-base:dev bash image/build.sh   # a fully custom name:tag
 ```
@@ -42,7 +42,7 @@ compiles `runtimed` from `control-plane/` (so the host needs only Docker, not Go
 stage 2 is a `debian:stable-slim` runtime with **Node 22 + pnpm + bun** and
 **Python 3 + uv** baked in. It builds for the **native architecture** (works on
 amd64 and arm64) and prints the image size. There is no `latest` tag — the control
-plane pins an exact version (`SANDBOXD_IMAGE`, default `sandboxd-base:0.4.1-nordineonline.8`). The
+plane pins an exact version (`SANDBOXD_IMAGE`, default `sandboxd-base:0.4.1-nordineonline.9`). The
 image runs as the non-root **`sandbox`** user (uid 1000).
 
 ## Seeding
@@ -61,7 +61,7 @@ See [`HOME_LAYOUT.md`](HOME_LAYOUT.md) for the full home contract.
 ## Self-check
 
 ```bash
-docker run --rm sandboxd-base:0.4.1-nordineonline.8 bash /opt/verify-base.sh
+docker run --rm sandboxd-base:0.4.1-nordineonline.9 bash /opt/verify-base.sh
 ```
 
 Confirms the toolchains (Node/npm/pnpm/bun, python3/uv/setuptools, build tools) are

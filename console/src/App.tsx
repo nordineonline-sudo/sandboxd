@@ -5,20 +5,17 @@ import { Sidebar } from './Sidebar'
 import { PRESET_ICONS } from './design/presetIcons'
 import { STARTERS, STARTER_ICONS } from './design/starters'
 import { AppView } from './AppView'
-import { AppBrain, brainExcerpt, buildBrainGraph } from './brain'
-import { BrainGraph } from './BrainGraph'
-import { StoreView } from './StoreView'
 import { SettingsView } from './SettingsView'
 import { Login, CreatePassword } from './AuthGate'
 
-type Route = { name: 'apps' } | { name: 'brain' } | { name: 'store' } | { name: 'settings' } | { name: 'app'; id: string; tab?: string; task?: string }
+type Route = { name: 'apps' } | { name: 'settings' } | { name: 'app'; id: string; tab?: string; task?: string }
 
 export default function App() {
   const isMobile = useIsMobile()
   const [route, setRoute] = useState<Route>({ name: 'apps' })
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([])
-  const [paletteOpen, setPaletteOpen] = useState(false)
   const [apps, setApps] = useState<TApp[]>([])
+  const [sbInfo, setSbInfo] = useState<Record<string, { status: string; url?: string }>>({})
   const [auth, setAuth] = useState<{ enabled: boolean; authenticated: boolean; password_set: boolean } | null>(null)
   // Update notification: the control plane checks GitHub releases (cached ~6h)
   // and reports update_available in /v1/settings. Dismissal is remembered per
@@ -59,22 +56,39 @@ export default function App() {
   const onAuthed = useCallback(() => { refreshAuth().then(loadApps) }, [refreshAuth, loadApps])
   const logout = useCallback(() => { api.logout().finally(() => setAuth((a) => (a ? { ...a, authenticated: false } : a))) }, [])
 
+  // Sandbox status/url per app, so the sidebar can show each app's live state
+  // and the Start/Stop/Open actions. Refetched whenever the app list changes
+  // and on a light interval while anything is running.
+  const loadSbInfo = useCallback(() => {
+    Promise.all(apps.filter((a) => a.current_sandbox_id).map(async (a) => {
+      try { const s = await api.getSandbox(a.current_sandbox_id as string); return [a.id, { status: s.status, url: s.preview?.url }] as const }
+      catch { return [a.id, { status: 'unknown' }] as const }
+    })).then((p) => setSbInfo(Object.fromEntries(p))).catch(() => {})
+  }, [apps])
+  useEffect(() => { loadSbInfo() }, [loadSbInfo])
   useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setPaletteOpen((o) => !o) }
-      else if (e.key === 'Escape') setPaletteOpen(false)
-    }
-    window.addEventListener('keydown', h)
-    return () => window.removeEventListener('keydown', h)
-  }, [])
+    const t = setInterval(() => { if (apps.some((a) => sbInfo[a.id]?.status === 'running')) loadSbInfo() }, 5000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apps, loadSbInfo, sbInfo])
 
   const goApp = (id: string, tab?: string) => setRoute({ name: 'app', id, tab })
   const running = apps.find((a) => a.current_sandbox_id)
 
+  // Start or stop an app's sandbox from the sidebar submenu.
+  const toggleSandbox = useCallback(async (appId: string) => {
+    const sbId = apps.find((a) => a.id === appId)?.current_sandbox_id
+    if (!sbId) { onError('No sandbox for this app yet — open it and create one'); return }
+    try {
+      const cur = await api.getSandbox(sbId)
+      if (cur.status === 'running') await api.stopSandbox(sbId)
+      else await api.startSandbox(sbId)
+      loadSbInfo()
+    } catch (e) { onError((e as Error).message) }
+  }, [apps, loadSbInfo, onError])
+
   const nav = [
     { key: 'apps', label: 'Apps' },
-    { key: 'brain', label: 'Brain' },
-    { key: 'store', label: 'App Store' },
     { key: 'settings', label: 'Settings' },
   ]
 
@@ -114,8 +128,13 @@ export default function App() {
         {!isMobile && (
           <Sidebar
             nav={nav}
-            active={route.name}
+            active={route.name === 'app' ? 'app' : route.name}
             onNavigate={(key) => setRoute({ name: key } as Route)}
+            apps={apps}
+            sbInfo={sbInfo}
+            currentApp={route.name === 'app' ? { id: route.id, tab: route.tab } : undefined}
+            onOpenApp={(id, tab) => goApp(id, tab)}
+            onToggleSandbox={toggleSandbox}
             running={running ? { id: running.id, name: running.name } : null}
             onOpenRunning={() => goApp(running!.id)}
             logout={logout}
@@ -126,33 +145,29 @@ export default function App() {
           {isMobile && (
             <Sidebar
               nav={nav}
-              active={route.name}
+              active={route.name === 'app' ? 'app' : route.name}
               onNavigate={(key) => setRoute({ name: key } as Route)}
+              apps={apps}
+              sbInfo={sbInfo}
+              currentApp={route.name === 'app' ? { id: route.id, tab: route.tab } : undefined}
+              onOpenApp={(id, tab) => goApp(id, tab)}
+              onToggleSandbox={toggleSandbox}
               running={running ? { id: running.id, name: running.name } : null}
               onOpenRunning={() => goApp(running!.id)}
               logout={logout}
               authEnabled={!!auth?.enabled}
             />
           )}
-          {!isMobile && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 20px 0' }}>
-              <div onClick={() => setPaletteOpen(true)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 8, border: `1px solid ${c.border}`, background: c.bg, borderRadius: 7, padding: '5px 10px', cursor: 'pointer', width: 180 }}>
-                <span style={{ color: c.muted2, fontSize: 12, flex: 1 }}>Search…</span>
-                <span style={{ ...mono, fontSize: 10, color: c.muted2, background: c.panel2, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 5px' }}>⌘K</span>
-              </div>
-            </div>
-          )}
 
           {/* MAIN */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
-            {route.name === 'apps' && <AppsScreen apps={apps} reload={loadApps} onOpen={(id) => goApp(id)} onError={onError} goStore={() => setRoute({ name: 'store' })} />}
-            {route.name === 'brain' && <BrainOverview apps={apps} onOpen={(id) => goApp(id, 'brain')} />}
-            {route.name === 'store' && <StoreView onError={onError} toast={toast} onOpen={(id) => goApp(id)} reloadApps={loadApps} />}
+            {route.name === 'apps' && <AppsScreen apps={apps} reload={loadApps} sbInfo={sbInfo} onOpen={(id) => goApp(id)} onError={onError} />}
             {route.name === 'settings' && <SettingsView onError={onError} toast={toast} />}
             {route.name === 'app' && (
               <AppView
                 appId={route.id}
-                initialTab={route.tab}
+                tab={route.tab}
+                onTabChange={(t) => setRoute({ name: 'app', id: route.id, tab: t })}
                 onError={onError}
                 toast={toast}
                 goApps={() => { setRoute({ name: 'apps' }); loadApps() }}
@@ -164,8 +179,6 @@ export default function App() {
           </div>
         </div>
       </div>
-
-      {paletteOpen && <Palette apps={apps} close={() => setPaletteOpen(false)} onGo={(r) => { setRoute(r); setPaletteOpen(false) }} />}
 
       {/* TOASTS */}
       {toasts.length > 0 && (
@@ -190,7 +203,7 @@ const PRESET_META: Record<string, { short: string; tag: string }> = {
   worker: { short: 'Worker', tag: 'Background · no preview' },
 }
 
-function AppsScreen({ apps, reload, onOpen, onError, goStore }: { apps: TApp[]; reload: () => void; onOpen: (id: string) => void; onError: (m: string) => void; goStore: () => void }) {
+function AppsScreen({ apps, reload, sbInfo, onOpen, onError }: { apps: TApp[]; reload: () => void; sbInfo: Record<string, { status: string; url?: string }>; onOpen: (id: string) => void; onError: (m: string) => void }) {
   const [name, setName] = useState('')
   const [starter, setStarter] = useState('')
   const [preset, setPreset] = useState('')
@@ -200,7 +213,6 @@ function AppsScreen({ apps, reload, onOpen, onError, goStore }: { apps: TApp[]; 
   const [credId, setCredId] = useState('')
   const [creds, setCreds] = useState<GitCredential[]>([])
   const [busy, setBusy] = useState(false)
-  const [sbInfo, setSbInfo] = useState<Record<string, { status: string; url?: string }>>({})
   const [agents, setAgents] = useState<Agent[]>([])
   // Progressive disclosure: the simple path (name → create) shows first; the
   // power options (stack / git / starter) reveal only when asked for.
@@ -214,12 +226,6 @@ function AppsScreen({ apps, reload, onOpen, onError, goStore }: { apps: TApp[]; 
     api.listGitCredentials().then(setCreds).catch(() => {})
     api.getAgents().then(setAgents).catch(() => {})
   }, [])
-  useEffect(() => {
-    Promise.all(apps.filter((a) => a.current_sandbox_id).map(async (a) => {
-      try { const s = await api.getSandbox(a.current_sandbox_id as string); return [a.id, { status: s.status, url: s.preview?.url }] as const }
-      catch { return [a.id, { status: 'unknown' }] as const }
-    })).then((p) => setSbInfo(Object.fromEntries(p)))
-  }, [apps])
 
   const create = async () => {
     const useGit = showGit && !!repo.trim()
@@ -350,7 +356,6 @@ function AppsScreen({ apps, reload, onOpen, onError, goStore }: { apps: TApp[]; 
             <span style={{ color: c.muted2, fontSize: 12, marginRight: 2 }}>or</span>
             {secBtn('Import from Git', showGit, () => { setShowGit((v) => !v); setShowStarter(false) })}
             {secBtn('Start from a starter', showStarter, () => { setShowStarter((v) => !v); setShowGit(false) })}
-            {secBtn('Browse App Store', false, goStore)}
           </div>
 
           {showGit && (
@@ -431,141 +436,3 @@ function AppsScreen({ apps, reload, onOpen, onError, goStore }: { apps: TApp[]; 
   )
 }
 
-// ---------- BRAIN OVERVIEW (every project's memory at a glance) ----------
-// Excerpt/graph logic lives in brain.ts (pure + unit-tested); this renders it.
-
-function BrainOverview({ apps, onOpen }: { apps: TApp[]; onOpen: (id: string) => void }) {
-  // null = no sandbox; undefined = still loading; AppBrain = hub + spoke notes.
-  const [brains, setBrains] = useState<Record<string, AppBrain | null | undefined>>({})
-
-  useEffect(() => {
-    apps.forEach((a) => {
-      if (!a.current_sandbox_id) { setBrains((b) => ({ ...b, [a.id]: null })); return }
-      api.getAppBrain(a.current_sandbox_id)
-        .then((br) => setBrains((b) => ({ ...b, [a.id]: br })))
-        .catch(() => setBrains((b) => ({ ...b, [a.id]: null })))
-    })
-  }, [apps])
-
-  const hasBrain = (id: string) => { const b = brains[id]; return !!b && (typeof b.hub === 'string' || Object.keys(b.spokes).length > 0) }
-  const withBrain = apps.filter((a) => hasBrain(a.id))
-  const without = apps.filter((a) => brains[a.id] !== undefined && !hasBrain(a.id))
-
-  return (
-    <div className="dc-page" style={{ maxWidth: 920, margin: '0 auto', padding: '36px 40px 80px' }}>
-      <h1 style={{ fontFamily: font.display, fontSize: 24, fontWeight: 700, margin: '0 0 6px' }}>Brain</h1>
-      <p style={{ color: c.muted, margin: '0 0 24px', maxWidth: 600 }}>
-        Every project's memory in one place — state, decisions, gotchas. Each app's <span style={{ ...mono, fontSize: 12 }}>BRAIN.md</span> is read by the agent before every task and updated as it learns.
-      </p>
-
-      {apps.length === 0 && <p style={{ color: c.muted2 }}>No apps yet — the brain fills in as you build.</p>}
-
-      {/* Knowledge graph: [[wikilinks]] between brains become edges; dashed
-          nodes are ghosts (no brain yet, or a linked concept with no app). */}
-      {(() => {
-        const settled = apps.every((a) => brains[a.id] !== undefined)
-        if (!settled || apps.length === 0) return null
-        const g = buildBrainGraph(apps, brains)
-        if (g.edges.length === 0 && g.nodes.every((n) => n.empty)) return null
-        return (
-          <>
-            <Card style={{ padding: '8px 10px', marginBottom: 22 }}>
-              <BrainGraph nodes={g.nodes} edges={g.edges} onOpen={onOpen} />
-              <div style={{ ...mono, fontSize: 10.5, color: c.muted2, textAlign: 'center', paddingBottom: 6 }}>
-                Link projects &amp; concepts from any brain with [[name]] — dashed nodes have no note yet · err-* concepts flag repeat mistakes.
-              </div>
-            </Card>
-            {g.concepts.length > 0 && (
-              <Card style={{ padding: 16, marginBottom: 22 }} data-testid="brain-concepts">
-                <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 13, marginBottom: 4 }}>Concepts without a note yet</div>
-                <div style={{ color: c.muted2, fontSize: 12, marginBottom: 10 }}>
-                  Linked from your brains but written nowhere. A concept shared by several apps is knowledge worth a note — an <span style={{ ...mono, fontSize: 11 }}>err-*</span> concept shared by several apps is a <b style={{ color: c.fg2 }}>repeat mistake</b>.
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {g.concepts.slice(0, 12).map((cs) => (
-                    <span key={cs.slug} title={`${cs.mentions} mention${cs.mentions > 1 ? 's' : ''} across ${cs.apps} app${cs.apps > 1 ? 's' : ''}`}
-                      style={{ ...mono, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px dashed ${cs.isError ? c.warn : c.border2}`, borderRadius: 7, padding: '5px 11px', color: cs.isError ? c.warn : c.muted }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: cs.isError && cs.apps > 1 ? c.warn : c.muted2 }} />
-                      [[{cs.label}]]
-                      <span style={{ color: c.muted2, fontSize: 10.5 }}>{cs.apps}×</span>
-                    </span>
-                  ))}
-                </div>
-              </Card>
-            )}
-          </>
-        )
-      })()}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }} data-testid="brain-list">
-        {withBrain.map((a) => {
-          const b = brains[a.id] as AppBrain
-          const md = b.hub || ''
-          const spokeCount = Object.keys(b.spokes).length
-          const excerpt = brainExcerpt(md)
-          return (
-            <Card key={a.id} style={{ padding: 16, cursor: 'pointer' }}>
-              <div className="dc-hoverborder" onClick={() => onOpen(a.id)} data-testid="brain-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                  <span style={{ ...mono, fontWeight: 500, fontSize: 14, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-                  <span style={{ ...mono, fontSize: 10, color: c.muted2 }}>{md.split('\n').length} lines{spokeCount > 0 ? ` · ${spokeCount} note${spokeCount > 1 ? 's' : ''}` : ''}</span>
-                </div>
-                <div style={{ color: c.muted, fontSize: 12.5, lineHeight: 1.5, minHeight: 38 }}>
-                  {excerpt || <i style={{ color: c.muted2 }}>No current state written yet.</i>}
-                </div>
-                <div style={{ marginTop: 10, color: c.link, fontSize: 12 }}>Open brain →</div>
-              </div>
-            </Card>
-          )
-        })}
-      </div>
-
-      {without.length > 0 && (
-        <div style={{ marginTop: 26 }}>
-          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 13, color: c.muted, marginBottom: 10 }}>No brain yet</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {without.map((a) => (
-              <span key={a.id} onClick={() => onOpen(a.id)} className="dc-hoverborder" style={{ ...mono, fontSize: 12, color: c.muted, border: `1px solid ${c.border}`, borderRadius: 7, padding: '5px 11px', cursor: 'pointer' }}>{a.name} +</span>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Palette({ apps, close, onGo }: { apps: TApp[]; close: () => void; onGo: (r: Route) => void }) {
-  const [q, setQ] = useState('')
-  const ref = useRef<HTMLInputElement>(null)
-  useEffect(() => { ref.current?.focus() }, [])
-  const items = useMemo(() => {
-    const cmds: { kind: string; label: string; go: Route }[] = [
-      { kind: 'go', label: 'Apps', go: { name: 'apps' } },
-      { kind: 'go', label: 'App Store', go: { name: 'store' } },
-      { kind: 'go', label: 'Settings', go: { name: 'settings' } },
-      ...apps.map((a) => ({ kind: 'app', label: a.name, go: { name: 'app', id: a.id } as Route })),
-    ]
-    const s = q.trim().toLowerCase()
-    return s ? cmds.filter((x) => x.label.toLowerCase().includes(s)) : cmds
-  }, [q, apps])
-  return (
-    <div onClick={close} style={{ position: 'fixed', inset: 0, background: 'rgba(9,9,11,.32)', zIndex: 90, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '14vh' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 560, maxWidth: '90vw', background: c.panel, border: `1px solid ${c.border}`, borderRadius: 12, boxShadow: '0 24px 64px rgba(0,0,0,.18)', overflow: 'hidden' }}>
-        <input ref={ref} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search apps, commands…" style={{ width: '100%', border: 'none', borderBottom: `1px solid ${c.border}`, padding: '14px 16px', fontSize: 14, color: c.fg, outline: 'none', fontFamily: font.sans }} />
-        <div style={{ maxHeight: 320, overflowY: 'auto', padding: 6 }}>
-          {items.length === 0 ? (
-            <div style={{ padding: 16, textAlign: 'center', color: c.muted2, fontSize: 12.5 }}>No matching commands</div>
-          ) : items.map((it, i) => (
-            <div key={i} onClick={() => onGo(it.go)} className="dc-hoverborder" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 7, cursor: 'pointer', border: '1px solid transparent' }}>
-              <span style={{ ...mono, fontSize: 10.5, color: c.muted2, background: c.panel2, border: `1px solid ${c.border}`, borderRadius: 4, padding: '1px 6px', minWidth: 44, textAlign: 'center' }}>{it.kind}</span>
-              <span style={{ fontSize: 13 }}>{it.label}</span>
-            </div>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 14, padding: '8px 14px', borderTop: `1px solid ${c.panel2}`, background: c.panel3, fontSize: 11, color: c.faint }}>
-          <span>↑↓ navigate</span><span>↵ run</span><span>esc close</span>
-        </div>
-      </div>
-    </div>
-  )
-}

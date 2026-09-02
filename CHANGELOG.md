@@ -6,6 +6,24 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.9] — 2026-09-02
+
+* feat(console): **sidebar overhaul** — removed the non-functional **Brain** and
+  **App Store** nav entries and the **Feedback** footer link; the **GitHub**
+  link now points to the fork repo (`nordineonline-sudo/sandboxd`); below
+  Settings a separator then the **app list with live status** (running apps
+  first); clicking an app opens its dashboard and reveals a **submenu** with
+  Start/Stop (real sandbox actions), Open ↗, and every app tab (agent,
+  OpenCode, overview, brain, readme, files, git, config, terminal, snapshots,
+  activity) so the in-app tab bar is no longer needed, by @nordineonline-sudo (fork)
+* feat(console): removed the **top-right search / ⌘K palette**, the **in-app
+  horizontal tab bar**, and the **Deploy** button (not functional yet),
+  by @nordineonline-sudo (fork)
+* feat(console): the app menu's "Copy preview URL" is now **"QRCode URL"** —
+  opens a popup with the preview URL and a scannable QR code (embedded
+  `qrcode` lib) + a copy button, by @nordineonline-sudo (fork)
+* deps(console): added `qrcode` (+ `@types/qrcode`), by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.8] — 2026-09-01
 
 * chore(console): removed the floating "?" helper button ("Ask sandboxd /
