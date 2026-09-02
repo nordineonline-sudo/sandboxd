@@ -31,7 +31,7 @@ function Field({ label, value, env, kind }: { label: string; value: ReactNode; e
 // Credential-only providers already routed by the credential proxy (usable
 // right away as "<id>/<model>" from the OpenCode agent). Kept in sync with
 // authproxy.creditOnlyProviders on the control-plane side.
-const WIRED_GATEWAY_IDS = new Set(['minimax', 'openai', 'deepseek', 'openrouter', 'cerebras', 'nvidia', 'xai', 'mistral', 'vercel-ai-gateway', 'huggingface', 'zai', 'google', 'perplexity'])
+const WIRED_GATEWAY_IDS = new Set(['minimax', 'openai', 'deepseek', 'openrouter', 'cerebras', 'nvidia', 'xai', 'ollama', 'mistral', 'vercel-ai-gateway', 'huggingface', 'zai', 'google', 'perplexity'])
 
 function SectionTitle({ children, note }: { children: ReactNode; note?: string }) {
   return (

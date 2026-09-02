@@ -6,6 +6,20 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.10] — 2026-09-02
+
+* feat(providers): **Ollama Cloud** wired end-to-end — added to the agentauth
+  registry + credential proxy upstream (`https://ollama.com/v1`),
+  `creditOnlyProviders`/`additionalProviderUpstreams`, the dynamic model
+  catalog (`GET /v1/agents/ollama/models`, 19 public models, no key needed to
+  list), and the console provider pickers. Usable from the chat as
+  `ollama/<model-id>` once a key is connected in Settings, by @nordineonline-sudo (fork)
+* feat(console): **GitHub Copilot** added to the chat's provider list; listed
+  for visibility, but its OAuth-device auth isn't proxyable so it stays
+  usable in the OpenCode (native) tab, by @nordineonline-sudo (fork)
+* docs: README (release-history + section 8 table), CHANGELOG,
+  by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.9] — 2026-09-02
 
 * feat(console): **sidebar overhaul** — removed the non-functional **Brain** and

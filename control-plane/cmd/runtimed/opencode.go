@@ -263,6 +263,7 @@ var additionalProviderUpstreams = map[string]string{
 	"cerebras":          "cerebras",
 	"nvidia":            "nvidia",
 	"xai":               "xai",
+	"ollama":            "ollama",
 	"mistral":           "mistral",
 	"vercel-ai-gateway": "vercel-ai-gateway",
 	"huggingface":       "huggingface",

@@ -11,7 +11,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.9-00ADD8"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.10-00ADD8"></a>
 </p>
 
 ---
@@ -239,6 +239,7 @@ Customize how the coding agents behave for the whole instance, from
 
 | Version | What landed |
 | --- | --- |
+| `.10` | **Ollama Cloud** fully wired (Settings → Agents + chat provider list; dynamic catalog, key-routed execution); **GitHub Copilot** listed in the chat providers (auth stays in the OpenCode tab). |
 | `.9` | **Sidebar overhaul** — Brain/App Store/Feedback removed, GitHub points to the fork, app list with live status (running first) + a per-app submenu (Start/Stop, Open, all tabs); removed the top-right search + ⌘K palette, the in-app tab bar and the Deploy button; preview **QR-code** popup. |
 | `.4` | Sidebar + headless chat + 6 wired providers |
 | `.5` | Dynamic model dropdown (single combined list) |
@@ -333,6 +334,7 @@ All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 
 | Version | Highlights |
 | --- | --- |
+| `0.4.1-nordineonline.10` | **Ollama Cloud** wired end-to-end (Settings → Agents + chat provider list, dynamic model catalog, key-routed execution); **GitHub Copilot** added to the chat's provider list (listed; its OAuth-device auth stays usable in the OpenCode tab only). |
 | `0.4.1-nordineonline.9` | **Sidebar overhaul** — removed Brain / App Store / Feedback, GitHub links to the fork, app list with live status (running first) + per-app submenu (Start/Stop, Open, all tabs); removed the top-right search + ⌘K palette, the in-app tab bar and the Deploy button; preview QR-code popup. |
 | `0.4.1-nordineonline.8` | Removed the floating "?" badge ("Ask sandboxd" helper); added `chat-context.md` as the hand-off doc for AI agents. |
 | `0.4.1-nordineonline.7` | **12 model providers wired**, redundant agent selector removed, **Stop button**, provider/model choice persistence, OpenCode tab (renamed from "Advanced") enabled on mobile. |

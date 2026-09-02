@@ -43,6 +43,7 @@ var modelCatalogUpstreams = map[string]string{
 	"cerebras":          "https://api.cerebras.ai/v1",
 	"nvidia":            "https://integrate.api.nvidia.com/v1",
 	"xai":               "https://api.x.ai/v1",
+	"ollama":           "https://ollama.com/v1",
 	"mistral":           "https://api.mistral.ai/v1",
 	"vercel-ai-gateway": "https://ai-gateway.vercel.sh/v1",
 	"huggingface":       "https://router.huggingface.co/v1",

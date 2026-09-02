@@ -27,7 +27,7 @@ const TABS = ['agent', 'advanced', 'overview', 'brain', 'readme', 'files', 'git'
 // control-plane/internal/api/v1_agent_models.go and internal/authproxy.
 // Ordered for display; every one shows up in the picker regardless of
 // connection status (an unconnected one just fails clearly at send time).
-const WIRED_GATEWAY_IDS_ORDERED = ['opencode', 'openai', 'openrouter', 'deepseek', 'cerebras', 'nvidia', 'xai', 'mistral', 'google', 'huggingface', 'vercel-ai-gateway', 'zai', 'perplexity', 'minimax']
+const WIRED_GATEWAY_IDS_ORDERED = ['opencode', 'openai', 'openrouter', 'deepseek', 'cerebras', 'nvidia', 'xai', 'ollama', 'mistral', 'google', 'huggingface', 'vercel-ai-gateway', 'zai', 'perplexity', 'minimax', 'github-copilot']
 type Tab = (typeof TABS)[number]
 
 // Per-app agent context (Layer 2). Platform/sandbox conventions come from the
