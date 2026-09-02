@@ -257,12 +257,18 @@ func minimaxUpstream() string {
 // Settings → AI Agents whose key the proxy injects directly (bearer,
 // OpenAI-compatible), reached through the opencode agent.
 var additionalProviderUpstreams = map[string]string{
-	"openai":     "openai",
-	"deepseek":   "deepseek",
-	"openrouter": "openrouter",
-	"cerebras":   "cerebras",
-	"nvidia":     "nvidia",
-	"xai":        "xai",
+	"openai":            "openai",
+	"deepseek":          "deepseek",
+	"openrouter":        "openrouter",
+	"cerebras":          "cerebras",
+	"nvidia":            "nvidia",
+	"xai":               "xai",
+	"mistral":           "mistral",
+	"vercel-ai-gateway": "vercel-ai-gateway",
+	"huggingface":       "huggingface",
+	"zai":               "zai",
+	"perplexity":        "perplexity",
+	"google":            "google",
 }
 
 // opencodeUpstream picks the proxy <upstream> segment for a given model

@@ -6,6 +6,34 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.7] — 2026-09-01
+
+* feat(providers): **6 more model providers wired end-to-end** — Mistral,
+  Vercel AI Gateway, Hugging Face, Z.AI (standard OpenAI-compatible bearer),
+  and Google/Gemini (its own header `x-goog-api-key` + response shape,
+  handled by the new `v1GoogleModels`) and Perplexity (wired for task
+  execution; no public `/models` endpoint, so no discovery — type the model
+  id manually). 12 providers now fully usable from the chat; 4 remain
+  connectable-but-not-routed (Amazon Bedrock, Azure, GitHub Copilot,
+  Cloudflare AI Gateway — genuinely different auth schemes: AWS SigV4, an
+  Azure resource/deployment field, GitHub's OAuth device flow, or a
+  per-account URL segment), by @nordineonline-sudo (fork)
+* feat(console): removed the redundant "agent" selector (OpenCode vs Claude
+  Code) — the chat always runs on `opencode`, the only agent wired to the
+  gateway providers; the provider picker now lists every wired gateway
+  (connected or not, with a "(not connected)" hint) instead of only the
+  currently-connected ones; the last provider/model choice is now persisted
+  per sandbox in `localStorage` (previously reset on every reopen)
+* feat(console): the send button turns into a **Stop** button while a task
+  is running (`POST /v1/sandboxes/{id}/tasks/{id}/cancel` — the endpoint
+  already existed, just wasn't wired to the UI)
+* feat(console): the "Advanced" tab is renamed **"OpenCode"** and enabled on
+  mobile too — it's the only place with real interactive permission prompts /
+  multiple-choice questions, since the headless chat's `opencode run` always
+  passes `--dangerously-skip-permissions`
+* docs: README section 8 rewritten with a per-version table, `docs/agent-auth.md`
+  provider directory updated, by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.6] — 2026-09-01
 
 * fix(runtimed): a gateway model routed through the OpenCode agent (e.g.

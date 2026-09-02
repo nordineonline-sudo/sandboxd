@@ -205,33 +205,44 @@ Customize how the coding agents behave for the whole instance, from
   submit by the control plane and passed to runtimed).
 
 ### 8. Mobile-first navigation & chat, expanded model providers
-*Release `0.4.1-nordineonline.4`, dynamic model catalog in `0.4.1-nordineonline.5`,
-provider/model split + routing fix in `0.4.1-nordineonline.6`.*
+*Release `0.4.1-nordineonline.4`–`.7` (see the table below for what landed in each).*
 
 - **Sidebar navigation**: the old top bar is now a left-hand rail on desktop
   and a hamburger-opened full-height drawer on mobile — sized and spaced for
   touch, without changing the PC layout's density.
 - **Headless agent chat, Telegram/WhatsApp-style, PC + mobile**: a real chat UI
-  (bubbles, auto-expanding textarea, Enter-safe on mobile keyboards, one round
-  send button) drives the same `/v1/sandboxes/{id}/tasks` + SSE API the
-  platform already used — no new moving parts. OpenCode's own native web
-  session is kept as an **Advanced** tab (desktop-only) for its full
-  IDE/session features.
-- **6 more model providers wired end-to-end** (OpenAI, DeepSeek, OpenRouter,
-  Cerebras, NVIDIA, xAI) — connect an API key in Settings → AI Agents, then use
-  it from the chat as `<provider>/<model-id>` (e.g. `openai/gpt-4o-mini`), on
-  top of the existing MiniMax gateway. **10 further providers** (Google, Amazon
-  Bedrock, Azure OpenAI, GitHub Copilot, Cloudflare/Vercel AI Gateway, Hugging
-  Face, Z.AI, Perplexity, Mistral) are connectable (key stored securely) but
-  not yet routed by the credential proxy — see
+  (bubbles, auto-expanding textarea, Enter-safe on mobile keyboards, a round
+  send/**stop** button — `POST .../tasks/{id}/cancel` while a task is running)
+  drives the same `/v1/sandboxes/{id}/tasks` + SSE API the platform already
+  used — no new moving parts. Always runs on the `opencode` agent (the only
+  one wired to the gateway providers below); OpenCode's own native session —
+  the only place with real interactive permission prompts / multiple-choice
+  questions, since the headless "run" mode always skips them — is the
+  **OpenCode** tab (PC and mobile).
+- **12 model providers wired end-to-end** (OpenAI, DeepSeek, OpenRouter,
+  Cerebras, NVIDIA, xAI, Mistral, Vercel AI Gateway, Hugging Face, Z.AI,
+  Google, MiniMax) — connect an API key in Settings → AI Agents, then use it
+  from the chat as `<provider>/<model-id>` (e.g. `openai/gpt-4o-mini`).
+  Perplexity is wired for execution but has no public model catalog (type the
+  model id manually). **4 further providers** (Amazon Bedrock, Azure OpenAI,
+  GitHub Copilot, Cloudflare AI Gateway) are connectable (key stored securely)
+  but need a non-bearer auth scheme (AWS SigV4, GCP/Azure specifics, GitHub's
+  OAuth device flow) the generic proxy doesn't cover yet — see
   [`docs/agent-auth.md`](docs/agent-auth.md) for the full list and status.
-- **Dynamic model catalog**: two pickers in the chat — **provider** (which
-  connected gateway to route through) and a **searchable model combobox**
-  (native `<input list>`, since a catalog like OpenRouter's is 400+ entries) —
-  fed by `GET /v1/agents/{id}/models`, a plain read-only `GET <base>/models`
-  call the control plane makes directly (standard OpenAI-compatible discovery,
-  no sandbox involved), injecting the stored key as a Bearer header. Falls
-  back to free-text entry when empty or unsupported.
+- **Two pickers + a searchable model combobox**: **provider** (every wired
+  gateway, connected or not) and a **model** field (native `<input list>`,
+  since a catalog like OpenRouter's is 400+ entries) fed by
+  `GET /v1/agents/{id}/models` — a plain read-only `GET <base>/models` call
+  the control plane makes directly (no sandbox involved), injecting the
+  stored key. Your last provider/model choice is remembered per sandbox
+  (`localStorage`), so it survives closing and reopening the app.
+
+| Version | What landed |
+| --- | --- |
+| `.4` | Sidebar + headless chat + 6 wired providers |
+| `.5` | Dynamic model dropdown (single combined list) |
+| `.6` | Split into provider + model pickers; **fixed** a routing bug where a gateway model silently fell back to Zen (root cause: `runtimed` ships in `sandboxd-base`, not the control plane — rebuilding only the latter never applied the fix) |
+| `.7` | 6 more providers wired (Mistral, Vercel AI Gateway, Hugging Face, Z.AI, Google, Perplexity); removed the redundant agent selector (always `opencode`); provider list now shows every wired gateway, connected or not; **Stop button** while a task runs; choice persistence; OpenCode tab renamed from "Advanced" and enabled on mobile |
 
 ### Where the fork differs operationally
 
@@ -321,8 +332,8 @@ All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 
 | Version | Highlights |
 | --- | --- |
-| `0.4.1-nordineonline.6` | **Provider/model split** in the chat (separate pickers + searchable combobox) and a **routing fix**: a gateway model (e.g. `openrouter/…`) now correctly reaches its own provider instead of silently falling back to OpenCode Zen — the bug only showed up once the in-sandbox `runtimed` binary (baked into `sandboxd-base`, not the control plane) was actually rebuilt. |
-| `0.4.1-nordineonline.5` | **Dynamic model catalog** in the chat (`GET /v1/agents/{id}/models`, live dropdown for every connected wired gateway, standard OpenAI-compatible discovery). |
+| `0.4.1-nordineonline.7` | **12 model providers wired**, redundant agent selector removed, **Stop button**, provider/model choice persistence, OpenCode tab (renamed from "Advanced") enabled on mobile. |
+| `0.4.1-nordineonline.5`–`.6` | **Dynamic model catalog** in the chat (`GET /v1/agents/{id}/models`), split into provider + model pickers, a routing bugfix (see section 8 for the root cause and lesson learned). |
 | `0.4.1-nordineonline.4` | **Mobile-first sidebar & chat** — hamburger drawer nav, Telegram-style headless agent chat (PC + mobile), OpenCode web kept as an Advanced tab; **6 more model providers** wired to the credential proxy (OpenAI, DeepSeek, OpenRouter, Cerebras, NVIDIA, xAI). |
 | `0.4.1-nordineonline.3` | **Custom agent instructions** (Settings → Agent instructions (custom)) — global prompt suffix, persisted, appended to every next task. |
 | `0.4.1-nordineonline.2` | **Real file manager** in the Files tab — upload (multi + drag & drop folders), download file/folder zip, mkdir/rename/delete, image preview. |

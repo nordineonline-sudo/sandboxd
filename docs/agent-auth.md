@@ -85,21 +85,27 @@ the generic credential-only providers below (`deepseek`, `openrouter`,
   `opencode` agent by selecting the model as `<id>/<model-id>` (e.g.
   `openai/gpt-4o-mini`, `deepseek/deepseek-chat`). Same mechanism as MiniMax,
   generalized (`authproxy.creditOnlyProviders`): none run their own task-agent
-  CLI; the proxy injects that provider's own connected key (Bearer,
-  OpenAI-compatible) regardless of the carrying agent.
+  CLI; the proxy injects that provider's own connected key regardless of the
+  carrying agent — Bearer/OpenAI-compatible for all of them except Google.
 
-  | Provider | id | Upstream |
-  |---|---|---|
-  | OpenAI | `openai` | `https://api.openai.com/v1` |
-  | DeepSeek | `deepseek` | `https://api.deepseek.com/v1` |
-  | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` |
-  | Cerebras | `cerebras` | `https://api.cerebras.ai/v1` |
-  | NVIDIA | `nvidia` | `https://integrate.api.nvidia.com/v1` |
-  | xAI | `xai` | `https://api.x.ai/v1` |
+  | Provider | id | Upstream | Notes |
+  |---|---|---|---|
+  | OpenAI | `openai` | `https://api.openai.com/v1` | |
+  | DeepSeek | `deepseek` | `https://api.deepseek.com/v1` | |
+  | OpenRouter | `openrouter` | `https://openrouter.ai/api/v1` | ~700 KiB catalog |
+  | Cerebras | `cerebras` | `https://api.cerebras.ai/v1` | |
+  | NVIDIA | `nvidia` | `https://integrate.api.nvidia.com/v1` | public catalog, no key needed to list |
+  | xAI | `xai` | `https://api.x.ai/v1` | |
+  | Mistral | `mistral` | `https://api.mistral.ai/v1` | |
+  | Vercel AI Gateway | `vercel-ai-gateway` | `https://ai-gateway.vercel.sh/v1` | |
+  | Hugging Face | `huggingface` | `https://router.huggingface.co/v1` | public catalog, no key needed to list |
+  | Z.AI | `zai` | `https://api.z.ai/api/paas/v4` | |
+  | Google (Gemini API) | `google` | `https://generativelanguage.googleapis.com/v1beta` | `x-goog-api-key` header, not Bearer; own response shape (`{"models":[{"name":"models/…"}]}`) — handled by `v1GoogleModels` |
+  | Perplexity | `perplexity` | `https://api.perplexity.ai` | no `/models` endpoint — type the model id manually (e.g. `perplexity/sonar-pro`) |
 
-  A further 10 providers (Google, Amazon Bedrock, Azure OpenAI, GitHub Copilot,
-  Cloudflare AI Gateway, Vercel AI Gateway, Hugging Face, Z.AI, Perplexity,
-  Mistral) are connectable in Settings (the key is stored securely) but are
+  A further 4 providers (Amazon Bedrock, Azure OpenAI, GitHub Copilot,
+  Cloudflare AI Gateway) are connectable in Settings (the key is stored
+  securely) but are
   **not yet routed by the proxy** — they need a non-bearer auth scheme (AWS
   SigV4, GCP service account, Azure deployment/api-key headers, GitHub OAuth
   device flow) or a per-account endpoint segment that the generic bearer-token

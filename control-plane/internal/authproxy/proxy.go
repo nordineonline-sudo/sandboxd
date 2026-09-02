@@ -62,6 +62,19 @@ var upstreams = map[string]string{
 	"cerebras":   "https://api.cerebras.ai/v1",
 	"nvidia":     "https://integrate.api.nvidia.com/v1",
 	"xai":        "https://api.x.ai/v1",
+	"mistral":            "https://api.mistral.ai/v1",
+	"vercel-ai-gateway":  "https://ai-gateway.vercel.sh/v1",
+	"huggingface":        "https://router.huggingface.co/v1",
+	"zai":                "https://api.z.ai/api/paas/v4",
+	// Perplexity has no /models discovery endpoint (see v1_agent_models.go's
+	// modelCatalogUpstreams — it's deliberately absent there), but chat
+	// completions work at the bare host with a standard Bearer key.
+	"perplexity": "https://api.perplexity.ai",
+	// Google (Gemini API / AI Studio) is OpenAI-INCOMPATIBLE: it needs an
+	// "x-goog-api-key" header instead of "Authorization: Bearer" (see the
+	// isGoogleUpstream special case in credFor below) and its /models
+	// response has its own shape (handled in v1_agent_models.go).
+	"google": "https://generativelanguage.googleapis.com/v1beta",
 }
 
 // creditOnlyProviders maps an <upstream> segment to the agentauth provider ID
@@ -81,6 +94,12 @@ var creditOnlyProviders = map[string]string{
 	"cerebras":             "cerebras",
 	"nvidia":               "nvidia",
 	"xai":                  "xai",
+	"mistral":              "mistral",
+	"vercel-ai-gateway":    "vercel-ai-gateway",
+	"huggingface":          "huggingface",
+	"zai":                  "zai",
+	"perplexity":           "perplexity",
+	"google":               "google",
 }
 
 // isMiniMaxUpstream reports whether <upstream> is one of the MiniMax direct
@@ -214,14 +233,21 @@ func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Proxy) credFor(agent, up string) (func(http.Header), bool) {
 	// Credential-only providers (MiniMax + the generic bearer-token providers
 	// added alongside it): regardless of which coding agent carries the
-	// request, the proxy injects THAT provider's own connected API key
-	// (Bearer — every upstream in creditOnlyProviders is OpenAI-compatible and
-	// accepts Authorization: Bearer). The carrying agent's own credential is
-	// irrelevant here; none of these have a task-agent CLI of their own.
+	// request, the proxy injects THAT provider's own connected API key. The
+	// carrying agent's own credential is irrelevant here; none of these have
+	// a task-agent CLI of their own.
 	if providerID, ok := creditOnlyProviders[up]; ok {
 		key := readTrim(filepath.Join(p.store.Dir(providerID), agentauth.APIKeyFile))
 		if key == "" {
 			return nil, false
+		}
+		if up == "google" {
+			// Gemini API is OpenAI-incompatible: it reads its key from a
+			// custom header, never Authorization.
+			return func(h http.Header) {
+				h.Del("Authorization")
+				h.Set("x-goog-api-key", key)
+			}, true
 		}
 		return func(h http.Header) {
 			h.Del("X-Api-Key")

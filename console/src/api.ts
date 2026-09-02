@@ -533,6 +533,8 @@ export const api = {
     req<{ tasks: TaskSummary[] }>('GET', `/v1/sandboxes/${id}/tasks`).then((r) => r.tasks || []),
   revertTask: (id: string, taskId: string) =>
     req<{ status: string }>('POST', `/v1/sandboxes/${id}/tasks/${taskId}/revert`),
+  cancelTask: (id: string, taskId: string) =>
+    req<unknown>('POST', `/v1/sandboxes/${id}/tasks/${taskId}/cancel`),
   taskEventsURL: (id: string, taskId: string) =>
     `/v1/sandboxes/${id}/tasks/${taskId}/events`,
   // Embed URL for the OpenCode web iframe (dedicated host + per-sandbox token).

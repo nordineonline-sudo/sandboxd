@@ -11,15 +11,23 @@ const CodeEditor = lazy(() => import('./CodeEditor').then((m) => ({ default: m.C
 const SandboxTerminal = lazy(() => import('./Terminal').then((m) => ({ default: m.SandboxTerminal })))
 
 // 'agent' is the headless chat (Telegram/WhatsApp-style, talks to the tasks API
-// directly). 'advanced' is OpenCode's own native web session, iframed — kept
-// as an escape hatch for its full IDE/session features; desktop-only, hidden
-// from the mobile tab bar (see the tabs filter below).
+// directly). 'advanced' — displayed as "OpenCode" — is OpenCode's own native
+// web session, iframed: it's the only place with real interactive permission
+// prompts / multiple-choice questions (the headless "run" mode used by
+// AgentChat always passes --dangerously-skip-permissions, so it can never be
+// interactive). Available on PC and mobile.
 const TABS = ['agent', 'advanced', 'overview', 'brain', 'readme', 'files', 'git', 'config', 'terminal', 'snapshots', 'activity'] as const
 
 // Credential-only gateway providers wired to the model-catalog discovery
 // endpoint (GET /v1/agents/{id}/models) — kept in sync with
 // modelCatalogUpstreams in control-plane/internal/api/v1_agent_models.go.
-const WIRED_GATEWAY_IDS = new Set(['opencode', 'minimax', 'openai', 'deepseek', 'openrouter', 'cerebras', 'nvidia', 'xai'])
+// Credential-only gateway providers wired to the model-catalog discovery
+// endpoint (GET /v1/agents/{id}/models) — kept in sync with
+// modelCatalogUpstreams/creditOnlyProviders in
+// control-plane/internal/api/v1_agent_models.go and internal/authproxy.
+// Ordered for display; every one shows up in the picker regardless of
+// connection status (an unconnected one just fails clearly at send time).
+const WIRED_GATEWAY_IDS_ORDERED = ['opencode', 'openai', 'openrouter', 'deepseek', 'cerebras', 'nvidia', 'xai', 'mistral', 'google', 'huggingface', 'vercel-ai-gateway', 'zai', 'perplexity', 'minimax']
 type Tab = (typeof TABS)[number]
 
 // Per-app agent context (Layer 2). Platform/sandbox conventions come from the
@@ -214,11 +222,13 @@ export function AppView({
         </div>
       )}
 
-      {/* tabs — "advanced" (the OpenCode web IDE) is a PC-only escape hatch */}
+      {/* tabs — "advanced" (labelled "OpenCode": the native OpenCode web
+          session, with its interactive permission prompts/multiple-choice
+          questions that the headless Agent chat can't do) */}
       <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${c.border}`, marginBottom: 24, overflowX: 'auto' }}>
-        {TABS.filter((t) => t !== 'advanced' || !isMobile).map((t) => (
-          <div key={t} data-testid={`tab-${t}`} className="dc-hoverink" onClick={() => setTabName(t)} style={{ ...tab(tabName === t), textTransform: 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {t}{tabBadge[t] && <span style={{ ...mono, marginLeft: 6, fontSize: 10, color: c.muted2 }}>{tabBadge[t]}</span>}
+        {TABS.map((t) => (
+          <div key={t} data-testid={`tab-${t}`} className="dc-hoverink" onClick={() => setTabName(t)} style={{ ...tab(tabName === t), textTransform: t === 'advanced' ? 'none' : 'capitalize', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {t === 'advanced' ? 'OpenCode' : t}{tabBadge[t] && <span style={{ ...mono, marginLeft: 6, fontSize: 10, color: c.muted2 }}>{tabBadge[t]}</span>}
           </div>
         ))}
       </div>
@@ -729,14 +739,17 @@ function RuntimeCard({ appId, onApplyRuntime, canApply }: { appId: string; onApp
 // Talks directly to the tasks API (POST /v1/sandboxes/{id}/tasks + SSE) — the
 // same mechanism the platform (App Store, auto-runtime-apply, BRAIN.md) already
 // uses. One continuous session per sandbox (no multi-conversation list).
-// Model field accepts "<provider>/<model-id>" for any connected agent — see
-// Settings → AI Agents and docs/agent-auth.md for which providers are wired.
+// Always runs on the "opencode" agent, which routes any connected gateway
+// provider as "<provider>/<model-id>" — see docs/agent-auth.md for which
+// providers are wired. (Claude Code/Codex are separate CLIs with their own
+// credentials; they're used directly inside the OpenCode tab's native
+// session instead of from this picker.)
 function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | null; onError: (m: string) => void; toast: (m: string) => void; refresh: () => void; heightPx?: number | null }) {
   const isMobile = useIsMobile()
   const [agents, setAgents] = useState<Agent[]>([])
-  const [agent, setAgent] = useState('opencode')
-  const [gatewayProvider, setGatewayProvider] = useState('opencode')
-  const [model, setModel] = useState('')
+  const storageKey = sb ? `sandboxd-chat-model-${sb.id}` : null
+  const [gatewayProvider, setGatewayProviderState] = useState('opencode')
+  const [model, setModelState] = useState('')
   const [modelOptions, setModelOptions] = useState<string[]>([])
   const [modelsLoading, setModelsLoading] = useState(false)
   const [cont, setCont] = useState(true)
@@ -744,44 +757,56 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
   const [history, setHistory] = useState<TaskSummary[]>([])
   const [live, setLive] = useState<{ prompt: string; text: string } | null>(null)
   const [running, setRunning] = useState(false)
+  const [runningTaskId, setRunningTaskId] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState(false)
   const [resolved, setResolved] = useState('')
   const [reverting, setReverting] = useState<string | null>(null)
   const esRef = useRef<EventSource | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const sandboxRunning = sb?.status === 'running'
-  const [agentConnected, setAgentConnected] = useState<boolean | null>(null)
-  const inputBlocked = agentConnected === false && agent !== 'opencode'
   const height = heightPx ? `${heightPx}px` : (isMobile ? 'calc(100vh - 190px)' : 'calc(100vh - 190px)')
+
+  // Restore the last provider/model choice for THIS sandbox (survives
+  // closing/reopening the app or the browser tab). Persisted per sandbox
+  // since different apps often use different providers.
+  useEffect(() => {
+    if (!storageKey) return
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || '{}')
+      if (saved.gatewayProvider) setGatewayProviderState(saved.gatewayProvider)
+      if (typeof saved.model === 'string') setModelState(saved.model)
+    } catch { /* ignore malformed storage */ }
+  }, [storageKey])
+  const setGatewayProvider = (v: string) => {
+    setGatewayProviderState(v)
+    if (storageKey) { try { localStorage.setItem(storageKey, JSON.stringify({ gatewayProvider: v, model: '' })) } catch { /* */ } }
+  }
+  const setModel = (v: string) => {
+    setModelState(v)
+    if (storageKey) { try { localStorage.setItem(storageKey, JSON.stringify({ gatewayProvider, model: v })) } catch { /* */ } }
+  }
 
   useEffect(() => { api.getAgents().then(setAgents).catch(() => {}) }, [])
 
   // Dynamic model catalog: two pickers — "provider" (which connected gateway
   // to route through) and "model" (a searchable combobox over that provider's
-  // real catalog, since some have 400+ models). Only meaningful for the
-  // "opencode" agent, which routes any connected gateway provider as
-  // "<provider>/<model-id>" (see docs/agent-auth.md); claude-code keeps its
-  // own plain model field (no gateway concept). Fetched ONE provider at a
-  // time (the currently selected one) rather than all of them — much lighter
-  // than pre-fetching every connected gateway's full catalog up front.
-  const connectedGateways = agents.filter((a) => WIRED_GATEWAY_IDS.has(a.id) && (a.id === 'opencode' || a.status === 'connected'))
+  // real catalog, since some have 400+ models). Every WIRED gateway is listed
+  // (connected or not — picking an unconnected one just fails clearly at
+  // send time, same as typing a bad model id). Fetched ONE provider at a
+  // time (the currently selected one), not all of them up front.
+  const gatewayList = WIRED_GATEWAY_IDS_ORDERED.map((id) => {
+    const known = agents.find((a) => a.id === id)
+    return { id, label: known?.label || id, connected: id === 'opencode' || known?.status === 'connected' }
+  })
   useEffect(() => {
-    if (agent !== 'opencode') { setModelOptions([]); return }
     let alive = true
     setModelsLoading(true)
-    setModel('')
     api.getAgentModels(gatewayProvider).catch(() => [] as string[])
       .then((list) => { if (alive) setModelOptions(list) })
       .finally(() => { if (alive) setModelsLoading(false) })
     return () => { alive = false }
-  }, [agent, gatewayProvider])
-  useEffect(() => {
-    let alive = true
-    api.getAgents()
-      .then((list) => { if (alive) setAgentConnected(list.some((p) => p.id === agent && p.status === 'connected')) })
-      .catch(() => { if (alive) setAgentConnected(null) })
-    return () => { alive = false }
-  }, [agent, history.length])
+  }, [gatewayProvider])
 
   useEffect(() => () => { esRef.current?.close(); if (pollRef.current) clearInterval(pollRef.current) }, [])
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight }, [history, live, running])
@@ -807,7 +832,8 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
     setText(''); setLive({ prompt, text: '' }); setResolved(''); setRunning(true)
     if (promptRef.current) promptRef.current.style.height = 'auto'
     try {
-      const t = await api.submitTask(sb.id, prompt, agent, model || undefined, cont)
+      const t = await api.submitTask(sb.id, prompt, 'opencode', model || undefined, cont)
+      setRunningTaskId(t.id)
       let agentText = ''
       let settled = false
       const finish = async () => {
@@ -815,7 +841,7 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
         settled = true
         if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
         try { esRef.current?.close() } catch { /* */ }
-        setRunning(false); refresh(); await reloadUntil(t.id); setLive(null)
+        setRunning(false); setRunningTaskId(null); setCancelling(false); refresh(); await reloadUntil(t.id); setLive(null)
       }
       const es = new EventSource(api.taskEventsURL(sb.id, t.id))
       esRef.current = es
@@ -837,6 +863,12 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
     } catch (e) { setRunning(false); setLive(null); onError((e as Error).message) }
   }
 
+  const stop = async () => {
+    if (!sb || !runningTaskId || cancelling) return
+    setCancelling(true)
+    try { await api.cancelTask(sb.id, runningTaskId) } catch (e) { onError((e as Error).message); setCancelling(false) }
+  }
+
   const revert = async (t: TaskSummary) => {
     if (!sb) return
     if (!window.confirm('Revert the workspace to BEFORE this task?\n\nThis discards every file change from this task onward (installed packages and build caches are kept). It cannot be undone.')) return
@@ -856,43 +888,32 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
   if (!sb) return <Card style={panel}>Create a sandbox to start building with the agent.</Card>
   if (sb.status !== 'running') return <Card style={panel}>Start the sandbox to open the agent.</Card>
 
-  const runnableAgents = agents.filter((a) => a.id !== 'codex' && a.runnable)
-
   return (
     <Card style={{ display: 'flex', flexDirection: 'column', height, minHeight: 380, overflow: 'hidden' }} data-testid="agent-chat">
-      {/* header: agent/model pickers — condensed on mobile, "..." style could be added later */}
+      {/* header: provider/model pickers — condensed on mobile */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: isMobile ? '10px 12px' : '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel3, flexWrap: 'wrap' }}>
         <label title="Continue the sandbox's most recent agent session instead of starting fresh" style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: cont ? c.fg : c.muted2, cursor: 'pointer' }} data-testid="task-continue">
           <input type="checkbox" checked={cont} onChange={(e) => setCont(e.target.checked)} style={{ accentColor: c.ink, width: 14, height: 14 }} />
           {!isMobile && 'Continue'}
         </label>
-        <select value={agent} onChange={(e) => { setAgent(e.target.value); setModel('') }} data-testid="task-agent" style={selStyle}>
-          {(runnableAgents.length ? runnableAgents : [{ id: 'opencode', label: 'OpenCode' } as Agent]).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
+        <select value={gatewayProvider} onChange={(e) => setGatewayProvider(e.target.value)} title="Model provider" data-testid="task-provider" style={selStyle}>
+          {gatewayList.map((g) => <option key={g.id} value={g.id}>{g.connected ? g.label : `${g.label} (not connected)`}</option>)}
         </select>
-        {agent === 'opencode' ? (
-          <>
-            <select value={gatewayProvider} onChange={(e) => setGatewayProvider(e.target.value)} title="Model provider" data-testid="task-provider" style={selStyle}>
-              {(connectedGateways.length ? connectedGateways : [{ id: 'opencode', label: 'OpenCode' } as Agent]).map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
-            </select>
-            {/* Searchable combobox (native datalist) — some gateways (OpenRouter)
-                have 400+ models, so a plain <select> isn't usable; typing
-                filters the list, and any value is still accepted (falls
-                through to a manual model id if it's not in the catalog). */}
-            <input
-              list="agent-chat-models"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder={modelsLoading ? 'Loading models…' : 'Default model — search…'}
-              data-testid="task-model"
-              style={{ ...selStyle, width: isMobile ? 150 : 240 }}
-            />
-            <datalist id="agent-chat-models">
-              {modelOptions.map((id) => <option key={id} value={id} />)}
-            </datalist>
-          </>
-        ) : (
-          <Input mono value={model} onChange={(e) => setModel(e.target.value)} placeholder="model (blank = default)" style={{ width: isMobile ? 130 : 190, fontSize: 11.5, padding: '6px 8px' }} data-testid="task-model" />
-        )}
+        {/* Searchable combobox (native datalist) — some gateways (OpenRouter)
+            have 400+ models, so a plain <select> isn't usable; typing
+            filters the list, and any value is still accepted (falls
+            through to a manual model id if it's not in the catalog). */}
+        <input
+          list="agent-chat-models"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder={modelsLoading ? 'Loading models…' : 'Default model — search…'}
+          data-testid="task-model"
+          style={{ ...selStyle, width: isMobile ? 150 : 240 }}
+        />
+        <datalist id="agent-chat-models">
+          {modelOptions.map((id) => <option key={id} value={id} />)}
+        </datalist>
         <div style={{ marginLeft: 'auto' }} />
       </div>
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '14px 10px' : 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -922,18 +943,8 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
         })}
         {live && <>{bubble('user', live.prompt)}{bubble('agent', live.text || '…')}</>}
         {resolved && <div style={{ ...mono, fontSize: 10.5, color: c.muted2 }}>▸ {resolved}</div>}
-        {running && <div style={{ ...mono, fontSize: 11.5, color: c.muted2, animation: 'pulse 1.4s ease-in-out infinite' }}>▍ working…</div>}
+        {running && <div style={{ ...mono, fontSize: 11.5, color: c.muted2, animation: 'pulse 1.4s ease-in-out infinite' }}>▍ {cancelling ? 'stopping…' : 'working…'}</div>}
       </div>
-      {inputBlocked && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${c.border}`, background: c.panel2, fontSize: 12, color: c.fg }} data-testid="agent-not-connected">
-          ⚠ No <b>{agent === 'claude-code' ? 'Claude Code' : agent}</b> agent connected — connect one in <b>Settings → AI Agents</b> to start building.
-        </div>
-      )}
-      {agent === 'opencode' && agentConnected === false && (
-        <div style={{ padding: '8px 12px', borderTop: `1px solid ${c.border}`, background: c.panel2, fontSize: 12, color: c.muted2 }} data-testid="opencode-free-tier">
-          Using the <b>OpenCode free tier</b> — no setup needed. Connect an API key in <b>Settings → AI Agents</b> for the full model catalog.
-        </div>
-      )}
       <div style={{ display: 'flex', gap: 8, padding: isMobile ? '10px 8px' : 10, borderTop: `1px solid ${c.border}`, background: c.panel3, alignItems: 'flex-end' }}>
         <textarea
           ref={promptRef}
@@ -948,14 +959,20 @@ function AgentChat({ sb, onError, toast, refresh, heightPx }: { sb: Sandbox | nu
           // keyboards use Enter for line breaks); Shift+Enter for a newline on
           // desktop, plain Enter sends.
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !isMobile) { e.preventDefault(); send() } }}
-          placeholder={inputBlocked ? 'Connect an agent in Settings first' : sandboxRunning ? (isMobile ? 'Message the agent…' : 'Message the agent… (Shift+Enter for a new line)') : 'Start the sandbox to run tasks'}
+          placeholder={sandboxRunning ? (isMobile ? 'Message the agent…' : 'Message the agent… (Shift+Enter for a new line)') : 'Start the sandbox to run tasks'}
           data-testid="task-prompt"
           rows={isMobile ? 1 : 2}
           style={{ flex: 1, background: '#fff', border: `1px solid ${c.border2}`, borderRadius: 10, padding: isMobile ? '11px 13px' : '8px 11px', color: c.fg, fontSize: isMobile ? 15 : 12.5, fontFamily: font.sans, resize: 'none', minHeight: isMobile ? 44 : 46, maxHeight: isMobile ? 140 : 160, lineHeight: 1.4 }}
         />
-        <Btn variant="primary" onClick={send} disabled={!sb || !sandboxRunning || running || inputBlocked} data-testid="run-task" style={isMobile ? { width: 44, height: 44, borderRadius: '50%', padding: 0, fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center' } : undefined}>
-          {isMobile ? '↑' : 'Send'}
-        </Btn>
+        {running ? (
+          <Btn variant="danger" onClick={stop} disabled={cancelling} data-testid="stop-task" style={isMobile ? { width: 44, height: 44, borderRadius: '50%', padding: 0, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center' } : undefined}>
+            {isMobile ? '■' : (cancelling ? 'Stopping…' : 'Stop')}
+          </Btn>
+        ) : (
+          <Btn variant="primary" onClick={send} disabled={!sb || !sandboxRunning} data-testid="run-task" style={isMobile ? { width: 44, height: 44, borderRadius: '50%', padding: 0, fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center' } : undefined}>
+            {isMobile ? '↑' : 'Send'}
+          </Btn>
+        )}
       </div>
     </Card>
   )

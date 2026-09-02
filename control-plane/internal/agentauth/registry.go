@@ -42,25 +42,31 @@ var registry = []Provider{
 	{ID: "cerebras", Label: "Cerebras", Binary: ""},
 	{ID: "nvidia", Label: "NVIDIA", Binary: ""},
 	{ID: "xai", Label: "xAI", Binary: ""},
+	{ID: "mistral", Label: "Mistral", Binary: ""},
+	{ID: "vercel-ai-gateway", Label: "Vercel AI Gateway", Binary: ""},
+	{ID: "huggingface", Label: "Hugging Face", Binary: ""},
+	{ID: "zai", Label: "Z.AI", Binary: ""},
+	// Google (Gemini API) is wired too, but with a header/response shape of
+	// its own (x-goog-api-key, not Bearer) — see authproxy's isGoogle special
+	// case and v1_agent_models.go's v1GoogleModels.
+	{ID: "google", Label: "Google", Binary: ""},
+	// Perplexity is wired for TASK EXECUTION (authproxy) but has no public
+	// /models discovery endpoint — the model id is typed manually (e.g.
+	// "perplexity/sonar-pro").
+	{ID: "perplexity", Label: "Perplexity", Binary: ""},
 
 	// Connectable here (key stored securely) but NOT YET routed by the auth
 	// proxy — these need a non-static-bearer auth scheme (AWS SigV4, GCP
 	// service account, Azure deployment/api-key headers, GitHub OAuth device
-	// flow) or a per-account endpoint segment (Cloudflare/Vercel gateways) that
-	// the generic bearer-token proxy path doesn't cover yet. Connecting one
-	// here does not yet make it usable in a task — use the OpenCode web
-	// "Advanced / IDE" tab to connect and use these directly inside the sandbox
-	// in the meantime.
-	{ID: "google", Label: "Google", Binary: ""},
+	// flow) or a per-account endpoint segment (Cloudflare AI Gateway needs an
+	// account + gateway ID in the URL) that the generic bearer-token proxy
+	// path doesn't cover yet. Connecting one here does not yet make it usable
+	// in a task — use the OpenCode web "OpenCode" tab to connect and use
+	// these directly inside the sandbox in the meantime.
 	{ID: "amazon-bedrock", Label: "Amazon Bedrock", Binary: ""},
 	{ID: "azure", Label: "Azure OpenAI", Binary: ""},
 	{ID: "github-copilot", Label: "GitHub Copilot", Binary: ""},
 	{ID: "cloudflare-ai-gateway", Label: "Cloudflare AI Gateway", Binary: ""},
-	{ID: "vercel-ai-gateway", Label: "Vercel AI Gateway", Binary: ""},
-	{ID: "huggingface", Label: "Hugging Face", Binary: ""},
-	{ID: "zai", Label: "Z.AI", Binary: ""},
-	{ID: "perplexity", Label: "Perplexity", Binary: ""},
-	{ID: "mistral", Label: "Mistral", Binary: ""},
 }
 
 // Providers returns a copy of the registry in display order.
