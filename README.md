@@ -11,7 +11,7 @@
   &nbsp;
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green.svg"></a>
   <img alt="Runs on Docker" src="https://img.shields.io/badge/runs%20on-Docker-2496ED.svg">
-  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.3-00ADD8"></a>
+  <a href="https://github.com/nordineonline-sudo/sandboxd/commits/main"><img alt="Version" src="https://img.shields.io/badge/version-0.4.1--nordineonline.8-00ADD8"></a>
 </p>
 
 ---
@@ -332,6 +332,7 @@ All releases are tracked in [`CHANGELOG.md`](CHANGELOG.md). The fork releases as
 
 | Version | Highlights |
 | --- | --- |
+| `0.4.1-nordineonline.8` | Removed the floating "?" badge ("Ask sandboxd" helper); added `chat-context.md` as the hand-off doc for AI agents. |
 | `0.4.1-nordineonline.7` | **12 model providers wired**, redundant agent selector removed, **Stop button**, provider/model choice persistence, OpenCode tab (renamed from "Advanced") enabled on mobile. |
 | `0.4.1-nordineonline.5`–`.6` | **Dynamic model catalog** in the chat (`GET /v1/agents/{id}/models`), split into provider + model pickers, a routing bugfix (see section 8 for the root cause and lesson learned). |
 | `0.4.1-nordineonline.4` | **Mobile-first sidebar & chat** — hamburger drawer nav, Telegram-style headless agent chat (PC + mobile), OpenCode web kept as an Advanced tab; **6 more model providers** wired to the credential proxy (OpenAI, DeepSeek, OpenRouter, Cerebras, NVIDIA, xAI). |

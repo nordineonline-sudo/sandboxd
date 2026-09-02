@@ -6,6 +6,15 @@ All notable changes to sandboxd are documented here. The format is based on
 patch** — each lands the meaningful changes merged since the last one — and a
 **minor bump marks a milestone** release).
 
+## [0.4.1-nordineonline.8] — 2026-09-01
+
+* chore(console): removed the floating "?" helper button ("Ask sandboxd /
+  Platform-wide help", component `Helper` in `console/src/App.tsx`) that
+  blocked part of the interface, by @nordineonline-sudo (fork)
+* docs: added `chat-context.md` — hand-off guide for AI agents / humans to
+  resume work on this fork (state, history, rules, versioning, commit &
+  deployment runbooks), by @nordineonline-sudo (fork)
+
 ## [0.4.1-nordineonline.7] — 2026-09-01
 
 * feat(providers): **6 more model providers wired end-to-end** — Mistral,

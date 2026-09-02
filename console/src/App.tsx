@@ -166,7 +166,6 @@ export default function App() {
       </div>
 
       {paletteOpen && <Palette apps={apps} close={() => setPaletteOpen(false)} onGo={(r) => { setRoute(r); setPaletteOpen(false) }} />}
-      <Helper />
 
       {/* TOASTS */}
       {toasts.length > 0 && (
@@ -566,30 +565,6 @@ function Palette({ apps, close, onGo }: { apps: TApp[]; close: () => void; onGo:
         <div style={{ display: 'flex', gap: 14, padding: '8px 14px', borderTop: `1px solid ${c.panel2}`, background: c.panel3, fontSize: 11, color: c.faint }}>
           <span>↑↓ navigate</span><span>↵ run</span><span>esc close</span>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function Helper() {
-  const [open, setOpen] = useState(false)
-  if (!open) {
-    return (
-      <div onClick={() => setOpen(true)} title="Ask sandboxd" style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 80, width: 44, height: 44, borderRadius: '50%', background: c.ink, color: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font.mono, fontSize: 15, cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,.22)' }}>?</div>
-    )
-  }
-  return (
-    <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: 81, width: 320, height: 380, background: c.panel, border: `1px solid ${c.border}`, borderRadius: 12, boxShadow: '0 16px 48px rgba(0,0,0,.2)', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${c.border}`, background: c.panel3, borderRadius: '12px 12px 0 0' }}>
-        <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg,#3f3f46,#18181b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: font.mono, fontSize: 10, color: c.bg }}>?</div>
-        <div>
-          <div style={{ fontFamily: font.display, fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>Ask sandboxd</div>
-          <div style={{ fontSize: 10.5, color: c.muted2, lineHeight: 1.2 }}>Platform-wide help</div>
-        </div>
-        <div onClick={() => setOpen(false)} className="dc-hoverink" style={{ marginLeft: 'auto', color: c.muted2, cursor: 'pointer', fontSize: 15, padding: '2px 6px', borderRadius: 5 }}>×</div>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 12, color: c.muted2, fontSize: 12 }}>
-        Ask about sandboxes, agents, git, snapshots, networking. (Chat wiring coming in a later phase.)
       </div>
     </div>
   )
